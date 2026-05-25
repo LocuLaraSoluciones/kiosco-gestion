@@ -1142,7 +1142,7 @@ function liveSearchIngreso(val) {
   if (!resultados.length) { sg.style.display = 'none'; return; }
   sg.style.display = 'block';
   sg.innerHTML = resultados.slice(0, 8).map(function(r) {
-    return '<div class="sug-item" onclick="seleccionarItemIngreso('' + r.tipo + '',' + r.id + ')">'
+    return '<div class="sug-item" onclick="seleccionarItemIngreso(\'' + r.tipo + '\',' + r.id + ')">'
       + '<strong>' + r.nombre + '</strong>'
       + ' <span class="tag tag-purple" style="font-size:10px">' + r.cat + '</span>'
       + ' <span style="font-size:11px;color:var(--text2)">Stock actual: ' + r.stock + '</span>'
