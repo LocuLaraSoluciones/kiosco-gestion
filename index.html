@@ -130,6 +130,13 @@ tr:hover td{background:#fafaf8}
 .modelo-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
 .modelo-item:hover{background:var(--bg)}
 .modelo-item:last-child{border-bottom:none}
+.tab-btn{padding:8px 16px;border:1px solid transparent;border-bottom:none;border-radius:var(--radius-sm) var(--radius-sm) 0 0;cursor:pointer;font-size:13px;background:transparent;color:var(--text2);font-family:inherit;font-weight:500;margin-bottom:-1px;position:relative}
+.tab-btn:hover{background:var(--bg);color:var(--text)}
+.tab-btn.active{background:var(--surface);color:var(--text);border-color:var(--border);border-bottom-color:var(--surface);font-weight:600}
+.ing-item-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border-radius:var(--radius-sm);margin-bottom:6px;font-size:13px}
+.ing-item-row .item-nombre{flex:1;font-weight:500}
+.ing-item-row .item-stock{color:var(--text2);font-size:12px;min-width:80px}
+.ing-item-row .item-qty{font-weight:600;color:var(--success);min-width:60px;text-align:center}
 </style>
 </head>
 <body>
@@ -163,7 +170,6 @@ tr:hover td{background:#fafaf8}
     <button class="nav-btn" onclick="showSection('stock',this)">📦 Stock</button>
     <button class="nav-btn" onclick="showSection('ingreso',this)">🚚 Ingreso</button>
     <button class="nav-btn admin-only" onclick="showSection('productos',this)">🏷️ Productos</button>
-    <button class="nav-btn admin-only" onclick="showSection('controles',this)">🎮 Controles</button>
     <button class="nav-btn admin-only" onclick="showSection('reportes',this)">📊 Reportes</button>
     <button class="nav-btn admin-only" onclick="showSection('precios',this)">💲 Precios</button>
     <button class="nav-btn admin-only" onclick="showSection('config',this)">⚙️ Config</button>
@@ -241,24 +247,56 @@ tr:hover td{background:#fafaf8}
     <div class="section" id="sec-ingreso">
       <div class="grid2" style="align-items:start">
         <div class="card">
-          <p style="font-weight:600;font-size:15px;margin-bottom:14px">🚚 Registrar ingreso</p>
-          <div class="barcode-bar">
+          <p style="font-weight:600;font-size:15px;margin-bottom:14px">🚚 Nuevo ingreso de mercaderia</p>
+          <div class="form-group">
+            <label class="label">Proveedor</label>
+            <select id="ing-prov" onchange="onProveedorChange()">
+              <option value="">— Seleccionar proveedor —</option>
+            </select>
+          </div>
+          <div id="ing-prov-info" style="display:none;margin-bottom:12px;padding:8px 10px;background:var(--info-bg);border-radius:var(--radius-sm);font-size:12px;color:var(--info)"></div>
+          <div class="form-group"><label class="label">Fecha</label><input type="date" id="ing-fecha"></div>
+          <div class="form-group"><label class="label">Notas del pedido (opcional)</label><input type="text" id="ing-nota-general" placeholder="Ej: Pedido semanal, factura #123..."></div>
+          <hr class="divider">
+          <p style="font-weight:600;font-size:13px;margin-bottom:10px">Agregar items al ingreso</p>
+          <div class="barcode-bar" style="margin-bottom:10px">
             <span>📷</span>
-            <input type="text" id="barcode-ingreso" placeholder="Escanear para seleccionar producto..." autocomplete="off" onkeydown="handleBarcodeIngreso(event)">
+            <input type="text" id="barcode-ingreso" placeholder="Escanear codigo de barras..." autocomplete="off" onkeydown="handleBarcodeIngreso(event)">
             <span class="barcode-fb" id="barcode-ingreso-fb">Listo</span>
           </div>
-          <div class="form-group"><label class="label">Proveedor</label><select id="ing-prov"></select></div>
-          <div class="form-group"><label class="label">Fecha</label><input type="date" id="ing-fecha"></div>
-          <div class="form-group"><label class="label">Producto</label><select id="ing-prod"></select></div>
-          <div class="form-group"><label class="label">Cantidad</label><input type="number" id="ing-qty" placeholder="0" min="1"></div>
-          <div class="form-group"><label class="label">Costo unitario ($)</label><input type="number" id="ing-costo" placeholder="0,00" min="0" step="0.01"></div>
-          <div class="form-group"><label class="label">Notas</label><input type="text" id="ing-nota" placeholder="Opcional..."></div>
-          <button class="btn btn-primary btn-full" onclick="registrarIngreso()">📥 Registrar ingreso</button>
+          <div class="form-group">
+            <label class="label">Buscar articulo</label>
+            <input type="text" id="ing-buscar" placeholder="Escribir nombre o codigo..." oninput="liveSearchIngreso(this.value)" autocomplete="off">
+            <div id="ing-sugs" style="display:none;border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:2px;max-height:160px;overflow-y:auto;background:var(--surface)"></div>
+          </div>
+          <div id="ing-item-form" style="display:none;background:var(--bg);border-radius:var(--radius-sm);padding:10px;margin-bottom:10px;border:1px solid var(--border)">
+            <div style="font-weight:600;font-size:13px;margin-bottom:6px" id="ing-item-nombre"></div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:8px" id="ing-item-info"></div>
+            <div class="row" style="gap:8px">
+              <div style="flex:1">
+                <label class="label">Stock actual</label>
+                <input type="text" id="ing-item-stock-actual" readonly style="background:var(--bg);color:var(--text2)">
+              </div>
+              <div style="flex:1">
+                <label class="label">Unidades que ingresan</label>
+                <input type="number" id="ing-item-qty" placeholder="0" min="1" style="font-size:15px">
+              </div>
+              <div style="flex:1">
+                <label class="label">Costo unitario ($)</label>
+                <input type="number" id="ing-item-costo" placeholder="0,00" min="0" step="0.01">
+              </div>
+            </div>
+            <button class="btn btn-primary btn-full" style="margin-top:8px" onclick="agregarItemIngreso()">+ Agregar a la lista</button>
+          </div>
+          <div id="ing-lista" style="margin-bottom:12px"></div>
+          <div id="ing-confirmar-btn" style="display:none">
+            <button class="btn btn-success btn-full" onclick="confirmarIngreso()">✅ Confirmar ingreso completo</button>
+          </div>
         </div>
         <div>
           <p style="font-weight:600;font-size:15px;margin-bottom:14px">Ultimos ingresos</p>
           <div class="card-flush">
-            <table><thead><tr><th>Fecha</th><th>Proveedor</th><th>Producto</th><th>Cant.</th><th>Costo</th></tr></thead>
+            <table><thead><tr><th>Fecha</th><th>Proveedor</th><th>Articulo</th><th>Cant.</th><th>Costo</th></tr></thead>
             <tbody id="ing-table"><tr><td colspan="5" class="loading"><span class="spinner"></span></td></tr></tbody></table>
           </div>
         </div>
@@ -267,7 +305,12 @@ tr:hover td{background:#fafaf8}
 
     <!-- PRODUCTOS -->
     <div class="section" id="sec-productos">
-      <div class="grid2" style="align-items:start">
+      <div style="display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:0">
+        <button class="tab-btn active" id="tab-gral-btn" onclick="switchProdTab('gral')">🏷️ Productos generales</button>
+        <button class="tab-btn" id="tab-ctrl-btn" onclick="switchProdTab('ctrl')">🎮 Controles remotos</button>
+      </div>
+      <!-- TAB GENERAL -->
+      <div id="tab-gral" class="grid2" style="align-items:start">
         <div class="card">
           <p style="font-weight:600;font-size:15px;margin-bottom:14px" id="prod-form-title">➕ Nuevo producto</p>
           <div class="form-group"><label class="label">Nombre</label><input type="text" id="np-nombre" placeholder="Ej: Coca Cola 500ml"></div>
@@ -293,60 +336,55 @@ tr:hover td{background:#fafaf8}
           </div>
           <div class="card-flush" style="max-height:500px;overflow-y:auto">
             <table><thead><tr><th>Nombre</th><th>Cat.</th><th>Precio</th><th>Tipo</th><th></th></tr></thead>
-            <tbody id="prod-table"><tr><td colspan="5" class="loading"><span class="spinner"></span></td></tr></tbody></table>
+            <tbody id="prod-table"></tbody></table>
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- CONTROLES -->
-    <div class="section" id="sec-controles">
-      <div class="grid2" style="align-items:start">
-        <div class="card">
-          <p style="font-weight:600;font-size:15px;margin-bottom:14px">🎮 Nuevo modelo de control</p>
-          <div class="form-group">
-            <label class="label">Categoria</label>
-            <select id="mc-cat">
-              <option value="TV">TV — $20.000</option>
-              <option value="Aire Acond">Aire Acond — $25.000</option>
-              <option value="Voz">Voz — $40.000</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="label">Codigo ECR (referencia principal)</label>
-            <input type="text" id="mc-ecr" placeholder="Ej: TV-SAM-001" style="font-family:monospace">
-          </div>
-          <div class="form-group">
-            <label class="label">Codigo Universo (equivalente, opcional)</label>
-            <input type="text" id="mc-univ" placeholder="Ej: U-S001" style="font-family:monospace">
-          </div>
-          <div class="form-group">
-            <label class="label">Stock inicial</label>
-            <input type="number" id="mc-stock" placeholder="0" min="0" value="0">
-          </div>
-          <button class="btn btn-primary btn-full" onclick="saveModelo()">➕ Agregar modelo</button>
-          <hr class="divider">
-          <p style="font-weight:600;font-size:13px;margin-bottom:6px">Importar desde CSV</p>
-          <p style="font-size:12px;color:var(--text2);margin-bottom:8px">Columnas requeridas: <code>codigo_ecr, codigo_universo, categoria, stock</code></p>
-          <input type="file" id="mc-csv" accept=".csv" onchange="importCSVModelos(this)" style="font-size:12px">
-        </div>
-        <div>
-          <div class="row-between" style="margin-bottom:10px">
-            <p style="font-weight:600;font-size:15px;margin:0">Modelos cargados</p>
-            <div class="row" style="gap:6px">
-              <select id="mc-filter-cat" onchange="renderModelosTable()" style="width:auto">
-                <option value="">Todas</option>
-                <option value="TV">TV</option>
-                <option value="Aire Acond">Aire Acond</option>
-                <option value="Voz">Voz</option>
+      <!-- TAB CONTROLES -->
+      <div id="tab-ctrl" style="display:none">
+        <div class="grid2" style="align-items:start">
+          <div class="card">
+            <p style="font-weight:600;font-size:15px;margin-bottom:14px">🎮 Nuevo modelo de control</p>
+            <div class="form-group"><label class="label">Categoria</label>
+              <select id="mc-cat">
+                <option value="TV">TV — $20.000</option>
+                <option value="Aire Acond">Aire Acond — $25.000</option>
+                <option value="Voz">Voz — $40.000</option>
               </select>
-              <input type="text" placeholder="Buscar codigo..." id="mc-search" oninput="renderModelosTable()" style="width:130px">
             </div>
+            <div class="form-group"><label class="label">Codigo ECR (referencia principal)</label>
+              <input type="text" id="mc-ecr" placeholder="Ej: TV-SAM-001" style="font-family:monospace">
+            </div>
+            <div class="form-group"><label class="label">Codigo Universo (equivalente, opcional)</label>
+              <input type="text" id="mc-univ" placeholder="Ej: U-S001" style="font-family:monospace">
+            </div>
+            <div class="form-group"><label class="label">Stock inicial</label>
+              <input type="number" id="mc-stock" placeholder="0" min="0" value="0">
+            </div>
+            <button class="btn btn-primary btn-full" onclick="saveModelo()">➕ Agregar modelo</button>
+            <hr class="divider">
+            <p style="font-weight:600;font-size:13px;margin-bottom:6px">Importar desde CSV</p>
+            <p style="font-size:12px;color:var(--text2);margin-bottom:8px">Columnas: <code>codigo_ecr, codigo_universo, categoria, stock</code></p>
+            <input type="file" id="mc-csv" accept=".csv" onchange="importCSVModelos(this)" style="font-size:12px">
           </div>
-          <div id="mc-stats" class="grid3" style="margin-bottom:10px"></div>
-          <div class="card-flush" style="max-height:440px;overflow-y:auto">
-            <table><thead><tr><th>Cod. ECR</th><th>Cod. Universo</th><th>Categoria</th><th>Stock</th><th></th></tr></thead>
-            <tbody id="modelos-table"><tr><td colspan="5" class="loading"><span class="spinner"></span>Cargando...</td></tr></tbody></table>
+          <div>
+            <div class="row-between" style="margin-bottom:10px">
+              <p style="font-weight:600;font-size:15px;margin:0">Modelos cargados</p>
+              <div class="row" style="gap:6px">
+                <select id="mc-filter-cat" onchange="renderModelosTable()" style="width:auto">
+                  <option value="">Todas</option>
+                  <option value="TV">TV</option>
+                  <option value="Aire Acond">Aire Acond</option>
+                  <option value="Voz">Voz</option>
+                </select>
+                <input type="text" placeholder="Buscar codigo..." id="mc-search" oninput="renderModelosTable()" style="width:130px">
+              </div>
+            </div>
+            <div id="mc-stats" class="grid3" style="margin-bottom:10px"></div>
+            <div class="card-flush" style="max-height:420px;overflow-y:auto">
+              <table><thead><tr><th>Cod. ECR</th><th>Cod. Universo</th><th>Categoria</th><th>Stock</th><th></th></tr></thead>
+              <tbody id="modelos-table"></tbody></table>
+            </div>
           </div>
         </div>
       </div>
@@ -441,7 +479,8 @@ tr:hover td{background:#fafaf8}
           <div class="form-group"><label class="label">Nombre</label><input type="text" id="np2-nombre" placeholder="Nombre proveedor"></div>
           <div class="form-group"><label class="label">Contacto</label><input type="text" id="np2-contacto" placeholder="Persona de contacto"></div>
           <div class="form-group"><label class="label">Telefono</label><input type="text" id="np2-tel" placeholder="Ej: 1125596272"></div>
-          <div class="form-group"><label class="label">Rubro</label><input type="text" id="np2-rubro" placeholder="Ej: Bebidas, golosinas..."></div>
+          <div class="form-group"><label class="label">Rubro / Productos</label><input type="text" id="np2-rubro" placeholder="Ej: Bebidas, golosinas..."></div>
+          <div class="form-group"><label class="label">Tipo de proveedor</label><select id="np2-tipo"><option value="">General</option><option value="Kiosco">Kiosco</option><option value="Controles remotos">Controles remotos</option><option value="Regaleria">Regaleria</option><option value="Accesorios">Accesorios</option><option value="Bebidas">Bebidas</option></select></div>
           <button class="btn btn-primary btn-full" onclick="addProveedor()">➕ Agregar proveedor</button>
         </div>
       </div>
@@ -634,9 +673,8 @@ function showSection(s, btn) {
   if (s === 'stock') renderStock();
   if (s === 'reportes') loadReportes();
   if (s === 'precios') renderPrecios();
-  if (s === 'productos') { renderProdTable(); populateProdForm(); }
-  if (s === 'controles') { loadModelos().then(renderModelosTable); }
-  if (s === 'ingreso') { populateIngresoForm(); loadIngresos(); }
+  if (s === 'productos') { renderProdTable(); populateProdForm(); renderModelosTable(); }
+  if (s === 'ingreso') { initIngresoForm(); loadIngresos(); }
   if (s === 'config') { loadUsersTable(); renderCatsList(); }
   if (s === 'ventas') focusLinea();
 }
@@ -1050,63 +1088,213 @@ async function renderStock() {
   }).join('');
 }
 
-// ── INGRESO ────────────────────────────────────────────────────────────────────
-function populateIngresoForm() {
-  document.getElementById('ing-prov').innerHTML = state.proveedores.map(function(p) { return '<option value="' + p.id + '">' + p.nombre + '</option>'; }).join('');
-  document.getElementById('ing-prod').innerHTML = state.productos.map(function(p) { return '<option value="' + p.id + '">' + p.nombre + '</option>'; }).join('');
+// ── INGRESO MULTI-ITEM ─────────────────────────────────────────────────────────
+var ingresoItems = [];
+var ingresoItemActual = null;
+
+function initIngresoForm() {
+  ingresoItems = [];
+  ingresoItemActual = null;
+  document.getElementById('ing-prov').innerHTML = '<option value="">— Seleccionar proveedor —</option>'
+    + state.proveedores.map(function(p) { return '<option value="' + p.id + '">' + p.nombre + (p.notas ? ' (' + p.notas + ')' : '') + '</option>'; }).join('');
   document.getElementById('ing-fecha').value = today();
+  document.getElementById('ing-nota-general').value = '';
+  document.getElementById('ing-buscar').value = '';
+  document.getElementById('ing-sugs').style.display = 'none';
+  document.getElementById('ing-item-form').style.display = 'none';
+  document.getElementById('ing-prov-info').style.display = 'none';
+  renderIngresoLista();
 }
-async function loadIngresos() {
-  var r = await sb.from('ingresos').select('*,proveedores(nombre),productos(nombre)').order('created_at', {ascending: false}).limit(20);
-  var tb = document.getElementById('ing-table');
-  if (!r.data || !r.data.length) { tb.innerHTML = '<tr><td colspan="5" style="color:var(--text3);padding:12px;text-align:center">Sin ingresos</td></tr>'; return; }
-  tb.innerHTML = r.data.map(function(i) {
-    return '<tr><td>' + fmtDate(i.fecha) + '</td><td style="font-size:12px">' + (i.proveedores ? i.proveedores.nombre : '-') + '</td><td style="font-size:12px">' + (i.productos ? i.productos.nombre : '-') + '</td><td>' + i.cantidad + '</td><td>' + fmt(i.costo_unitario) + '</td></tr>';
+
+function onProveedorChange() {
+  var provId = parseInt(document.getElementById('ing-prov').value);
+  var prov = state.proveedores.find(function(p) { return p.id === provId; });
+  var info = document.getElementById('ing-prov-info');
+  if (prov && (prov.contacto || prov.telefono || prov.notas)) {
+    var txt = [];
+    if (prov.notas) txt.push('Tipo: ' + prov.notas);
+    if (prov.contacto) txt.push('Contacto: ' + prov.contacto);
+    if (prov.telefono) txt.push('Tel: ' + prov.telefono);
+    info.textContent = txt.join('  •  ');
+    info.style.display = 'block';
+  } else {
+    info.style.display = 'none';
+  }
+}
+
+function liveSearchIngreso(val) {
+  var sg = document.getElementById('ing-sugs');
+  if (!val || val.length < 2) { sg.style.display = 'none'; return; }
+  var q = val.toLowerCase();
+  var resultados = [];
+  // Productos generales
+  state.productos.forEach(function(p) {
+    if (p.nombre.toLowerCase().indexOf(q) > -1 || (p.codigo_barras && p.codigo_barras.indexOf(val) > -1)) {
+      resultados.push({tipo: 'producto', id: p.id, nombre: p.nombre, stock: p.stock_minimo === 0 ? '∞' : String(p.stock), cat: p.categorias ? p.categorias.nombre : '', extra: ''});
+    }
+  });
+  // Modelos de control
+  modelosData.forEach(function(m) {
+    if (m.codigo_ecr.indexOf(val.toUpperCase()) > -1 || (m.codigo_universo && m.codigo_universo.indexOf(val.toUpperCase()) > -1)) {
+      resultados.push({tipo: 'control', id: m.id, nombre: 'Control ' + m.categoria + ' — ' + m.codigo_ecr, stock: String(m.stock), cat: 'Control ' + m.categoria, extra: m.codigo_universo ? 'Universo: ' + m.codigo_universo : ''});
+    }
+  });
+  if (!resultados.length) { sg.style.display = 'none'; return; }
+  sg.style.display = 'block';
+  sg.innerHTML = resultados.slice(0, 8).map(function(r) {
+    return '<div class="sug-item" onclick="seleccionarItemIngreso('' + r.tipo + '',' + r.id + ')">'
+      + '<strong>' + r.nombre + '</strong>'
+      + ' <span class="tag tag-purple" style="font-size:10px">' + r.cat + '</span>'
+      + ' <span style="font-size:11px;color:var(--text2)">Stock actual: ' + r.stock + '</span>'
+      + (r.extra ? '<br><span style="font-size:11px;color:var(--text3)">' + r.extra + '</span>' : '')
+      + '</div>';
   }).join('');
 }
+
+function seleccionarItemIngreso(tipo, id) {
+  document.getElementById('ing-sugs').style.display = 'none';
+  document.getElementById('ing-buscar').value = '';
+  var nombre, stockActual, cat, extra;
+  if (tipo === 'producto') {
+    var p = state.productos.find(function(x) { return x.id === id; });
+    if (!p) return;
+    nombre = p.nombre;
+    stockActual = p.stock_minimo === 0 ? '∞ (sin control)' : String(p.stock) + ' unidades';
+    cat = p.categorias ? p.categorias.nombre : '';
+    extra = p.proveedor_id ? 'Proveedor: ' + (p.proveedores ? p.proveedores.nombre : '') : '';
+  } else {
+    var m = modelosData.find(function(x) { return x.id === id; });
+    if (!m) return;
+    nombre = 'Control ' + m.categoria + ' — ' + m.codigo_ecr;
+    stockActual = String(m.stock) + ' unidades';
+    cat = 'Control ' + m.categoria;
+    extra = m.codigo_universo ? 'Cod. Universo: ' + m.codigo_universo : '';
+  }
+  ingresoItemActual = {tipo: tipo, id: id, nombre: nombre};
+  document.getElementById('ing-item-nombre').textContent = nombre;
+  document.getElementById('ing-item-info').textContent = cat + (extra ? '  •  ' + extra : '');
+  document.getElementById('ing-item-stock-actual').value = stockActual;
+  document.getElementById('ing-item-qty').value = '';
+  document.getElementById('ing-item-costo').value = '';
+  document.getElementById('ing-item-form').style.display = 'block';
+  document.getElementById('ing-item-qty').focus();
+}
+
 function handleBarcodeIngreso(e) {
   if (e.key !== 'Enter') return;
   var code = document.getElementById('barcode-ingreso').value.trim();
   if (!code) return;
-  var p = state.productos.find(function(x) { return x.codigo_barras === code; });
   var fb = document.getElementById('barcode-ingreso-fb');
+  // Buscar en productos por codigo de barras
+  var p = state.productos.find(function(x) { return x.codigo_barras === code; });
   if (p) {
     fb.textContent = 'OK: ' + p.nombre; fb.className = 'barcode-fb ok';
-    document.getElementById('ing-prod').value = p.id;
-    if (p.proveedor_id) document.getElementById('ing-prov').value = p.proveedor_id;
     document.getElementById('barcode-ingreso').value = '';
-    document.getElementById('ing-qty').focus();
-    setTimeout(function() { fb.textContent = 'Listo'; fb.className = 'barcode-fb'; }, 2500);
-  } else {
-    fb.textContent = 'No encontrado'; fb.className = 'barcode-fb err';
-    setTimeout(function() { fb.textContent = 'Listo'; fb.className = 'barcode-fb'; }, 2500);
-    document.getElementById('barcode-ingreso').select();
+    seleccionarItemIngreso('producto', p.id);
+    setTimeout(function() { fb.textContent = 'Listo'; fb.className = 'barcode-fb'; }, 2000);
+    return;
   }
+  // Buscar en modelos de control
+  var m = modelosData.find(function(x) { return x.codigo_ecr === code.toUpperCase() || (x.codigo_universo && x.codigo_universo === code.toUpperCase()); });
+  if (m) {
+    fb.textContent = 'OK: ' + m.codigo_ecr; fb.className = 'barcode-fb ok';
+    document.getElementById('barcode-ingreso').value = '';
+    seleccionarItemIngreso('control', m.id);
+    setTimeout(function() { fb.textContent = 'Listo'; fb.className = 'barcode-fb'; }, 2000);
+    return;
+  }
+  fb.textContent = 'No encontrado'; fb.className = 'barcode-fb err';
+  setTimeout(function() { fb.textContent = 'Listo'; fb.className = 'barcode-fb'; }, 2500);
+  document.getElementById('barcode-ingreso').select();
 }
-async function registrarIngreso() {
-  var pid = parseInt(document.getElementById('ing-prod').value);
-  var provId = parseInt(document.getElementById('ing-prov').value);
-  var qty = parseFloat(document.getElementById('ing-qty').value) || 0;
-  var costo = parseFloat(document.getElementById('ing-costo').value) || 0;
-  var fecha = document.getElementById('ing-fecha').value;
-  var nota = document.getElementById('ing-nota').value;
-  if (!qty || qty <= 0) { toast('Ingresa una cantidad valida', false); return; }
-  var p = state.productos.find(function(x) { return x.id === pid; });
-  if (!p) return;
-  await sb.from('ingresos').insert({proveedor_id: provId, producto_id: pid, cantidad: qty, costo_unitario: costo, fecha: fecha, notas: nota, usuario: state.user.nombre});
-  if (p.stock_minimo > 0) {
-    var ns = p.stock + qty;
-    await sb.from('productos').update({stock: ns}).eq('id', pid);
-    p.stock = ns;
-    toast('Ingreso registrado — stock actualizado');
-  } else {
-    toast('Ingreso registrado — stock sin control (∞)');
+
+function agregarItemIngreso() {
+  if (!ingresoItemActual) return;
+  var qty = parseFloat(document.getElementById('ing-item-qty').value) || 0;
+  var costo = parseFloat(document.getElementById('ing-item-costo').value) || 0;
+  if (!qty || qty <= 0) { toast('Ingresa la cantidad', false); return; }
+  // Verificar si ya existe el mismo item
+  var existing = ingresoItems.find(function(x) { return x.tipo === ingresoItemActual.tipo && x.id === ingresoItemActual.id; });
+  if (existing) { existing.qty += qty; existing.costo = costo; }
+  else ingresoItems.push({tipo: ingresoItemActual.tipo, id: ingresoItemActual.id, nombre: ingresoItemActual.nombre, qty: qty, costo: costo});
+  document.getElementById('ing-item-form').style.display = 'none';
+  ingresoItemActual = null;
+  renderIngresoLista();
+  toast(qty + ' unidad(es) agregada(s) a la lista');
+}
+
+function renderIngresoLista() {
+  var el = document.getElementById('ing-lista');
+  var btn = document.getElementById('ing-confirmar-btn');
+  if (!ingresoItems.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0;text-align:center">Sin items agregados</div>';
+    btn.style.display = 'none';
+    return;
   }
-  document.getElementById('ing-qty').value = '';
-  document.getElementById('ing-costo').value = '';
-  document.getElementById('ing-nota').value = '';
-  await loadIngresos();
-  renderProdGrid();
+  el.innerHTML = '<div style="font-weight:600;font-size:12px;color:var(--text2);margin-bottom:6px">Items a ingresar (' + ingresoItems.length + '):</div>'
+    + ingresoItems.map(function(item, i) {
+      return '<div class="ing-item-row">'
+        + '<span class="item-nombre">' + item.nombre + '</span>'
+        + '<span class="item-qty">+' + item.qty + ' u.</span>'
+        + (item.costo > 0 ? '<span class="item-stock">' + fmt(item.costo) + ' c/u</span>' : '')
+        + '<button class="qty-btn" onclick="quitarItemIngreso(' + i + ')" title="Quitar">✕</button>'
+        + '</div>';
+    }).join('');
+  btn.style.display = 'block';
+}
+
+function quitarItemIngreso(i) {
+  ingresoItems.splice(i, 1);
+  renderIngresoLista();
+}
+
+async function confirmarIngreso() {
+  var provId = parseInt(document.getElementById('ing-prov').value);
+  var fecha = document.getElementById('ing-fecha').value;
+  var notaGeneral = document.getElementById('ing-nota-general').value;
+  if (!provId) { toast('Selecciona un proveedor', false); return; }
+  if (!fecha) { toast('Selecciona una fecha', false); return; }
+  if (!ingresoItems.length) { toast('Agrega al menos un item', false); return; }
+  var btn = document.querySelector('[onclick="confirmarIngreso()"]');
+  btn.disabled = true; btn.textContent = 'Procesando...';
+  try {
+    for (var i = 0; i < ingresoItems.length; i++) {
+      var item = ingresoItems[i];
+      if (item.tipo === 'producto') {
+        var p = state.productos.find(function(x) { return x.id === item.id; });
+        if (!p) continue;
+        await sb.from('ingresos').insert({proveedor_id: provId, producto_id: item.id, cantidad: item.qty, costo_unitario: item.costo, fecha: fecha, notas: notaGeneral, usuario: state.user.nombre});
+        if (p.stock_minimo > 0) {
+          var ns = p.stock + item.qty;
+          await sb.from('productos').update({stock: ns}).eq('id', item.id);
+          p.stock = ns;
+        }
+      } else {
+        var m = modelosData.find(function(x) { return x.id === item.id; });
+        if (!m) continue;
+        await sb.from('ingresos').insert({proveedor_id: provId, producto_id: null, cantidad: item.qty, costo_unitario: item.costo, fecha: fecha, notas: 'Control ' + m.categoria + ' ' + m.codigo_ecr + (notaGeneral ? ' — ' + notaGeneral : ''), usuario: state.user.nombre});
+        var ns2 = m.stock + item.qty;
+        await sb.from('modelos_control').update({stock: ns2}).eq('id', item.id);
+        m.stock = ns2;
+      }
+    }
+    toast(ingresoItems.length + ' items ingresados correctamente');
+    ingresoItems = [];
+    renderIngresoLista();
+    renderProdGrid();
+    await loadIngresos();
+  } catch(e) { toast('Error al confirmar ingreso', false); console.error(e); }
+  btn.disabled = false; btn.textContent = '✅ Confirmar ingreso completo';
+}
+
+async function loadIngresos() {
+  var r = await sb.from('ingresos').select('*,proveedores(nombre),productos(nombre)').order('created_at', {ascending: false}).limit(30);
+  var tb = document.getElementById('ing-table');
+  if (!r.data || !r.data.length) { tb.innerHTML = '<tr><td colspan="5" style="color:var(--text3);padding:12px;text-align:center">Sin ingresos</td></tr>'; return; }
+  tb.innerHTML = r.data.map(function(i) {
+    var art = i.productos ? i.productos.nombre : (i.notas && i.notas.indexOf('Control') === 0 ? i.notas.split(' — ')[0] : '-');
+    return '<tr><td>' + fmtDate(i.fecha) + '</td><td style="font-size:12px">' + (i.proveedores ? i.proveedores.nombre : '-') + '</td><td style="font-size:12px">' + art + '</td><td>' + i.cantidad + '</td><td>' + fmt(i.costo_unitario) + '</td></tr>';
+  }).join('');
 }
 
 // ── PRODUCTOS ──────────────────────────────────────────────────────────────────
@@ -1161,6 +1349,14 @@ function editProduct(id) {
   document.getElementById('btn-cancel-prod').style.display = '';
   window.scrollTo(0, 0);
 }
+function switchProdTab(tab) {
+  document.getElementById('tab-gral').style.display = tab === 'gral' ? '' : 'none';
+  document.getElementById('tab-ctrl').style.display = tab === 'ctrl' ? '' : 'none';
+  document.getElementById('tab-gral-btn').className = 'tab-btn' + (tab === 'gral' ? ' active' : '');
+  document.getElementById('tab-ctrl-btn').className = 'tab-btn' + (tab === 'ctrl' ? ' active' : '');
+  if (tab === 'ctrl') renderModelosTable();
+}
+
 function cancelEditProd() {
   state.editingProdId = null;
   document.getElementById('prod-form-title').textContent = '➕ Nuevo producto';
@@ -1379,10 +1575,11 @@ async function addProveedor() {
     nombre: nombre,
     contacto: document.getElementById('np2-contacto').value,
     telefono: document.getElementById('np2-tel').value,
-    rubro: document.getElementById('np2-rubro').value
+    rubro: document.getElementById('np2-rubro').value,
+    notas: document.getElementById('np2-tipo').value
   });
   document.getElementById('np2-nombre').value = ''; document.getElementById('np2-contacto').value = '';
-  document.getElementById('np2-tel').value = ''; document.getElementById('np2-rubro').value = '';
+  document.getElementById('np2-tel').value = ''; document.getElementById('np2-rubro').value = ''; document.getElementById('np2-tipo').value = '';
   await loadProveedores(); toast('Proveedor agregado');
 }
 
