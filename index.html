@@ -660,7 +660,30 @@ function showSection(s,btn){
 // ── LINEA ACTIVA ───────────────────────────────────────────────────────────────
 function focusLinea(){ setTimeout(function(){ var el=document.getElementById('linea-activa'); if(el)el.focus(); },80); }
 
+var sugIdx = -1;
+
+function setSugIdx(idx){
+  var items = document.querySelectorAll('#linea-sugs .sug-item');
+  if(!items.length) return;
+  sugIdx = Math.max(-1, Math.min(idx, items.length-1));
+  items.forEach(function(el,i){
+    el.style.background = i===sugIdx ? 'var(--primary-bg)' : '';
+    el.style.fontWeight = i===sugIdx ? '600' : '';
+  });
+  if(sugIdx>=0) items[sugIdx].scrollIntoView({block:'nearest'});
+}
+
+function activateSugIdx(){
+  var items = document.querySelectorAll('#linea-sugs .sug-item');
+  if(sugIdx>=0 && items[sugIdx]){
+    items[sugIdx].click();
+    return true;
+  }
+  return false;
+}
+
 function liveSearch(val){
+  sugIdx = -1;
   var sg=document.getElementById('linea-sugs');
   if(!val||val.length<1){ sg.style.display='none'; return; }
   var q=val.toLowerCase().trim();
@@ -706,9 +729,17 @@ function liveSearch(val){
 }
 
 function handleLinea(e){
+  var sg=document.getElementById('linea-sugs');
+  var visible=sg.style.display!=='none';
+  if(e.key==='ArrowDown'){ e.preventDefault(); if(visible) setSugIdx(sugIdx+1); return; }
+  if(e.key==='ArrowUp'){ e.preventDefault(); if(visible) setSugIdx(sugIdx-1); return; }
+  if(e.key==='Escape'){ sg.style.display='none'; sugIdx=-1; return; }
   if(e.key!=='Enter') return;
+  // Si hay item seleccionado con flechas, activarlo
+  if(visible && activateSugIdx()) return;
   var val=document.getElementById('linea-activa').value.trim();
   document.getElementById('linea-sugs').style.display='none';
+  sugIdx=-1;
   if(!val) return;
   var q=val.toLowerCase();
 
