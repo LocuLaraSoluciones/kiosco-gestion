@@ -1137,17 +1137,13 @@ function liveSearchIngreso(val) {
   modelosData.forEach(function(m) {
     if (m.codigo_ecr.indexOf(val.toUpperCase()) > -1 || (m.codigo_universo && m.codigo_universo.indexOf(val.toUpperCase()) > -1)) {
       resultados.push({tipo: 'control', id: m.id, nombre: 'Control ' + m.categoria + ' — ' + m.codigo_ecr, stock: String(m.stock), cat: 'Control ' + m.categoria, extra: m.codigo_universo ? 'Universo: ' + m.codigo_universo : ''});
-    }
-  });
-  if (!resultados.length) { sg.style.display = 'none'; return; }
-  sg.style.display = 'block';
-  sg.innerHTML = resultados.slice(0, 8).map(function(r) {
-    return '<div class="sug-item" onclick="seleccionarItemIngreso('' + r.tipo + '',' + r.id + ')">'
+       return '<div class="sug-item" onclick="seleccionarItemIngreso(\'' + r.tipo + '\',' + r.id + ')">'
       + '<strong>' + r.nombre + '</strong>'
       + ' <span class="tag tag-purple" style="font-size:10px">' + r.cat + '</span>'
       + ' <span style="font-size:11px;color:var(--text2)">Stock actual: ' + r.stock + '</span>'
       + (r.extra ? '<br><span style="font-size:11px;color:var(--text3)">' + r.extra + '</span>' : '')
       + '</div>';
+  }).join('');
   }).join('');
 }
 
