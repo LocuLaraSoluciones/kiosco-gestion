@@ -198,19 +198,18 @@ tr:hover td{background:#fafaf8}
 
     <!-- VENTAS -->
     <div class="section active" id="sec-ventas">
-      <div class="grid2" style="align-items:start">
-        <div>
-          <div class="barcode-bar">
+      <div style="max-width:520px;margin:0 auto">
+        <div class="row" style="margin-bottom:12px;gap:8px">
+          <button class="btn btn-primary" style="flex:1;padding:10px" onclick="openProductModal()">📋 Ver productos</button>
+          <button class="btn" style="flex:1;padding:10px;border-color:#185FA5;color:#185FA5;background:var(--info-bg)" onclick="showBarcodeInput()">📷 Código de barras</button>
+          <button class="btn" style="flex:1;padding:10px;border-color:#BA7517;color:#BA7517;background:var(--warning-bg)" onclick="showTramiteModal()">🗂️ Trámites</button>
+        </div>
+        <div id="barcode-ventas-area" style="display:none;margin-bottom:10px">
+          <div class="barcode-bar" style="margin-bottom:0">
             <span style="font-size:18px">📷</span>
-            <input type="text" id="barcode-ventas" placeholder="Escanear código de barras..." autocomplete="off" onkeydown="handleBarcodeVentas(event)">
-            <span class="barcode-feedback idle" id="barcode-ventas-fb">Listo para escanear</span>
+            <input type="text" id="barcode-ventas" placeholder="Esperando código..." autocomplete="off" onkeydown="handleBarcodeVentas(event)" onblur="hideBarcodeIfEmpty()">
+            <span class="barcode-feedback idle" id="barcode-ventas-fb">Listo</span>
           </div>
-          <div class="search-bar">
-            <span class="search-icon">🔍</span>
-            <input type="text" placeholder="Buscar producto..." id="prod-search" oninput="filterProds()">
-          </div>
-          <div class="cat-filters" id="cat-filters"></div>
-          <div class="prod-grid" id="prod-grid"><div class="loading"><span class="spinner"></span>Cargando productos...</div></div>
         </div>
         <div class="card">
           <div class="row-between" style="margin-bottom:12px">
@@ -218,7 +217,7 @@ tr:hover td{background:#fafaf8}
             <button class="btn btn-sm btn-danger" onclick="clearCart()">Limpiar</button>
           </div>
           <div id="peso-input-area"></div>
-          <div id="cart-items" style="min-height:60px;max-height:200px;overflow-y:auto"></div>
+          <div id="cart-items" style="min-height:60px;max-height:260px;overflow-y:auto"></div>
           <hr class="divider">
           <div class="row-between" style="margin-bottom:8px;font-size:13px">
             <span style="color:var(--text2)">Subtotal</span>
@@ -252,6 +251,44 @@ tr:hover td{background:#fafaf8}
             ✅ Cobrar y registrar venta
           </button>
           <div id="last-receipt"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL PRODUCTOS -->
+    <div id="modal-productos" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;padding:16px;overflow-y:auto">
+      <div style="background:var(--surface);border-radius:var(--radius);max-width:700px;margin:0 auto;padding:16px;border:1px solid var(--border)">
+        <div class="row-between" style="margin-bottom:12px">
+          <span style="font-weight:600;font-size:15px">📋 Seleccionar producto</span>
+          <button class="btn btn-sm" onclick="closeProductModal()">✕ Cerrar</button>
+        </div>
+        <div class="search-bar" style="margin-bottom:10px">
+          <span class="search-icon">🔍</span>
+          <input type="text" placeholder="Buscar producto..." id="prod-search" oninput="filterProds()">
+        </div>
+        <div class="cat-filters" id="cat-filters"></div>
+        <div class="prod-grid" id="prod-grid" style="max-height:400px"><div class="loading"><span class="spinner"></span>Cargando...</div></div>
+      </div>
+    </div>
+
+    <!-- MODAL TRAMITES -->
+    <div id="modal-tramite" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+      <div style="background:var(--surface);border-radius:var(--radius);width:340px;padding:20px;border:1px solid var(--border);margin:auto;margin-top:15vh">
+        <div class="row-between" style="margin-bottom:14px">
+          <span style="font-weight:600;font-size:15px">🗂️ Agregar trámite</span>
+          <button class="btn btn-sm" onclick="closeTramiteModal()">✕</button>
+        </div>
+        <div class="form-group">
+          <label class="label">Descripción del trámite</label>
+          <input type="text" id="tramite-desc" placeholder="Ej: ANSES, RENAPER, Sellado...">
+        </div>
+        <div class="form-group">
+          <label class="label">Valor ($)</label>
+          <input type="number" id="tramite-valor" placeholder="0,00" min="0" step="0.01" onkeydown="if(event.key==='Enter')confirmTramite()">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="btn btn-primary" style="flex:1" onclick="confirmTramite()">✅ Agregar al ticket</button>
+          <button class="btn" onclick="closeTramiteModal()">Cancelar</button>
         </div>
       </div>
     </div>
@@ -624,7 +661,57 @@ function renderProdGrid(){
 function setCat(c){ state.activeCat=c; renderProdGrid(); }
 function filterProds(){ renderProdGrid(); }
 
+// ─── MODAL PRODUCTOS ─────────────────────────────────────────────────────────
+function openProductModal(){
+  document.getElementById('modal-productos').style.display = 'block';
+  renderProdGrid();
+  setTimeout(function(){ var s=document.getElementById('prod-search'); if(s)s.focus(); },100);
+}
+function closeProductModal(){
+  document.getElementById('modal-productos').style.display = 'none';
+}
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape'){
+    closeProductModal();
+    closeTramiteModal();
+  }
+});
+
+// ─── TRÁMITES ─────────────────────────────────────────────────────────────────
+function showTramiteModal(){
+  var m = document.getElementById('modal-tramite');
+  m.style.display = 'block';
+  setTimeout(function(){ var d=document.getElementById('tramite-desc'); if(d)d.focus(); },100);
+}
+function closeTramiteModal(){
+  document.getElementById('modal-tramite').style.display = 'none';
+  document.getElementById('tramite-desc').value = '';
+  document.getElementById('tramite-valor').value = '';
+}
+function confirmTramite(){
+  var desc = document.getElementById('tramite-desc').value.trim();
+  var valor = parseFloat(document.getElementById('tramite-valor').value)||0;
+  if(!desc){ toast('Ingresá una descripción', false); return; }
+  if(!valor||valor<=0){ toast('Ingresá un valor válido', false); return; }
+  state.cart.push({id:'tramite_'+Date.now(), name:'🗂️ '+desc, price:valor, qty:1, total:valor, peso:false, tramite:true});
+  renderCart();
+  closeTramiteModal();
+  toast('Trámite agregado al ticket');
+}
+
 // ─── CÓDIGO DE BARRAS ────────────────────────────────────────────────────────
+function showBarcodeInput(){
+  var area = document.getElementById('barcode-ventas-area');
+  area.style.display = 'block';
+  setTimeout(function(){ document.getElementById('barcode-ventas').focus(); }, 50);
+}
+function hideBarcodeIfEmpty(){
+  var input = document.getElementById('barcode-ventas');
+  if(!input.value.trim()){
+    document.getElementById('barcode-ventas-area').style.display = 'none';
+  }
+}
+
 var barcodeBuffer = '';
 var barcodeTimer = null;
 
@@ -681,6 +768,7 @@ function addToCart(id){
   if(ex){ ex.qty++; ex.total=ex.qty*ex.price; }
   else state.cart.push({id:p.id, name:p.nombre, price:p.precio, qty:1, total:p.precio, peso:false});
   renderCart();
+  closeProductModal();
 }
 
 function showPesoInput(p){
@@ -766,6 +854,7 @@ async function finalizeSale(){
     }; });
     await sb.from('venta_items').insert(items);
     for(var item of state.cart){
+      if(item.tramite) continue;
       var p = state.productos.find(function(x){ return x.id===item.id; });
       if(p && p.stock_minimo > 0){
         var newStock = Math.max(0, p.stock - (item.peso?item.grams:item.qty));
