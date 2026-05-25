@@ -611,7 +611,7 @@ function renderProdGrid(){
   var g = document.getElementById('prod-grid');
   if(!prods.length){ g.innerHTML='<div style="color:var(--text3);font-size:13px;padding:16px;text-align:center">Sin productos</div>'; return; }
   g.innerHTML = prods.map(function(p){
-    var cls = 'prod-card' + (p.por_peso?' por-peso':'') + (p.stock<=0?' sin-stock':'');
+    var cls = 'prod-card' + (p.por_peso?' por-peso':'') + (p.stock_minimo>0&&p.stock<=0?' sin-stock':'');
     var preciof = p.por_peso ? fmt(p.precio)+'/g' : fmt(p.precio);
     return '<div class="'+cls+'" onclick="addToCart('+p.id+')">'
       +'<div class="prod-name">'+p.nombre+'</div>'
@@ -675,7 +675,7 @@ function handleBarcodeIngreso(e){
 function addToCart(id){
   var p = state.productos.find(function(x){ return x.id===id; });
   if(!p) return;
-  if(p.stock<=0){ toast('Sin stock disponible', false); return; }
+  if(p.stock_minimo > 0 && p.stock<=0){ toast('Sin stock disponible', false); return; }
   if(p.por_peso){ showPesoInput(p); return; }
   var ex = state.cart.find(function(x){ return x.id===id && !x.peso; });
   if(ex){ ex.qty++; ex.total=ex.qty*ex.price; }
@@ -767,9 +767,11 @@ async function finalizeSale(){
     await sb.from('venta_items').insert(items);
     for(var item of state.cart){
       var p = state.productos.find(function(x){ return x.id===item.id; });
-      if(p){ var newStock = Math.max(0, p.stock - (item.peso?item.grams:item.qty));
+      if(p && p.stock_minimo > 0){
+        var newStock = Math.max(0, p.stock - (item.peso?item.grams:item.qty));
         await sb.from('productos').update({stock: newStock}).eq('id', item.id);
-        p.stock = newStock; }
+        p.stock = newStock;
+      }
     }
     var cartSnap = state.cart.slice();
     document.getElementById('last-receipt').innerHTML = '<div class="receipt">'
@@ -799,20 +801,25 @@ async function renderStock(){
   var prods = state.productos.filter(function(p){
     return (!q||p.nombre.toLowerCase().indexOf(q)>-1) && (!catF||(p.categorias&&p.categorias.nombre===catF));
   });
-  var alerts = prods.filter(function(p){ return p.stock<=p.stock_minimo; });
+  var alerts = prods.filter(function(p){ return p.stock_minimo > 0 && p.stock <= p.stock_minimo; });
   var ad = document.getElementById('stock-alerts');
   if(alerts.length){ ad.innerHTML=alerts.map(function(p){ return '<div class="alert alert-warning">⚠️ <strong>'+p.nombre+'</strong> — stock bajo ('+p.stock+' / mín '+p.stock_minimo+')</div>'; }).join(''); }
   else { ad.innerHTML='<div class="alert alert-success">✅ Todo el stock en orden</div>'; }
   var tb = document.getElementById('stock-table');
   tb.innerHTML = prods.map(function(p){
-    var pct = Math.min(100, Math.round(p.stock/Math.max(p.stock_minimo*3,1)*100));
-    var color = p.stock<=p.stock_minimo?'#E24B4A':p.stock<=p.stock_minimo*2?'#EF9F27':'#1D9E75';
-    var tag = p.stock<=p.stock_minimo?'<span class="tag tag-red">Bajo</span>':p.stock<=p.stock_minimo*2?'<span class="tag tag-amber">Atención</span>':'<span class="tag tag-green">Ok</span>';
+    var sinControl = p.stock_minimo === 0;
+    var pct = sinControl ? 100 : Math.min(100, Math.round(p.stock/Math.max(p.stock_minimo*3,1)*100));
+    var color = sinControl ? '#1D9E75' : p.stock<=p.stock_minimo?'#E24B4A':p.stock<=p.stock_minimo*2?'#EF9F27':'#1D9E75';
+    var tag = sinControl
+      ? '<span class="tag tag-blue">∞ Sin control</span>'
+      : p.stock<=p.stock_minimo?'<span class="tag tag-red">Bajo</span>':p.stock<=p.stock_minimo*2?'<span class="tag tag-amber">Atención</span>':'<span class="tag tag-green">Ok</span>';
+    var stockDisplay = sinControl
+      ? '<span style="font-weight:600">∞</span>'
+      : '<span style="font-weight:600">'+p.stock+'</span>'+(p.por_peso?'g':'')+'<div class="stock-bar"><div class="stock-fill" style="width:'+pct+'%;background:'+color+'"></div></div>';
     return '<tr><td><strong>'+p.nombre+'</strong>'+(p.por_peso?'<span class="tag tag-blue" style="margin-left:5px;font-size:10px">⚖️ gramo</span>':'')+'</td>'
       +'<td><span class="tag tag-purple">'+(p.categorias?p.categorias.nombre:'-')+'</span></td>'
-      +'<td><span style="font-weight:600">'+p.stock+'</span>'+(p.por_peso?'g':'')
-      +'<div class="stock-bar"><div class="stock-fill" style="width:'+pct+'%;background:'+color+'"></div></div></td>'
-      +'<td>'+p.stock_minimo+'</td><td>'+tag+'</td>'
+      +'<td>'+stockDisplay+'</td>'
+      +'<td>'+(sinControl?'<span style="color:var(--text3)">—</span>':p.stock_minimo)+'</td><td>'+tag+'</td>'
       +'<td style="color:var(--text2);font-size:12px">'+(p.proveedores?p.proveedores.nombre:'-')+'</td></tr>';
   }).join('');
 }
@@ -839,16 +846,20 @@ async function registrarIngreso(){
   if(!qty||qty<=0){ toast('Ingresá una cantidad válida', false); return; }
   var p = state.productos.find(function(x){ return x.id===pid; });
   if(!p) return;
-  var newStock = p.stock + qty;
   await sb.from('ingresos').insert({proveedor_id:provId, producto_id:pid, cantidad:qty, costo_unitario:costo, fecha, notas:nota, usuario:state.user.nombre});
-  await sb.from('productos').update({stock:newStock}).eq('id',pid);
-  p.stock = newStock;
+  if(p.stock_minimo > 0){
+    var newStock = p.stock + qty;
+    await sb.from('productos').update({stock:newStock}).eq('id',pid);
+    p.stock = newStock;
+    toast('Ingreso registrado — stock actualizado');
+  } else {
+    toast('Ingreso registrado — stock no controlado (∞)');
+  }
   document.getElementById('ing-qty').value='';
   document.getElementById('ing-costo').value='';
   document.getElementById('ing-nota').value='';
   await loadIngresos();
   renderProdGrid();
-  toast('Ingreso registrado — stock actualizado');
 }
 
 // ─── PRODUCTOS ───────────────────────────────────────────────────────────────
@@ -876,8 +887,8 @@ async function saveProduct(){
   var catId = parseInt(document.getElementById('np-cat').value);
   var provId = parseInt(document.getElementById('np-prov').value);
   var precio = parseFloat(document.getElementById('np-precio').value)||0;
-  var stock = parseFloat(document.getElementById('np-stock').value)||0;
-  var min = parseFloat(document.getElementById('np-min').value)||5;
+  var min = parseFloat(document.getElementById('np-min').value)||0;
+  var stock = min > 0 ? (parseFloat(document.getElementById('np-stock').value)||0) : 0;
   var peso = document.getElementById('np-peso').checked;
   var barcode = document.getElementById('np-barcode').value.trim()||null;
   if(!nombre||!precio){ toast('Completá nombre y precio', false); return; }
