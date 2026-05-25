@@ -269,6 +269,26 @@ tr:hover td{background:#fafaf8}
             <input type="text" id="ing-buscar" placeholder="Buscar articulo por nombre o codigo..." oninput="liveSearchIngreso(this.value)" autocomplete="off">
             <div id="ing-sugs" style="display:none;border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:2px;max-height:160px;overflow-y:auto;background:var(--surface)"></div>
           </div>
+          <div style="margin-bottom:10px">
+            <button class="btn btn-sm" style="width:100%;border-style:dashed;color:var(--text2)" onclick="toggleCrearProdIngreso()">+ Crear nuevo producto desde aca</button>
+          </div>
+          <div id="ing-crear-prod" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:10px">
+            <p style="font-weight:600;font-size:13px;margin-bottom:8px">Nuevo producto</p>
+            <div class="form-group"><label class="label">Nombre</label><input type="text" id="icp-nombre" placeholder="Nombre del producto"></div>
+            <div class="row" style="gap:8px;margin-bottom:12px">
+              <div style="flex:1"><label class="label">Categoria</label><select id="icp-cat"></select></div>
+              <div style="flex:1"><label class="label">Proveedor</label><select id="icp-prov"></select></div>
+            </div>
+            <div class="row" style="gap:8px;margin-bottom:12px">
+              <div style="flex:1"><label class="label">Precio ($)</label><input type="number" id="icp-precio" placeholder="0,00" min="0" step="0.01"></div>
+              <div style="flex:1"><label class="label">Cod. barras/ECR</label><input type="text" id="icp-barcode" placeholder="Opcional" style="font-family:monospace"></div>
+              <div style="flex:1"><label class="label">Stock minimo</label><input type="number" id="icp-min" placeholder="0" min="0" value="0"></div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" style="flex:1" onclick="crearProdDesdeIngreso()">Crear y agregar a lista</button>
+              <button class="btn btn-sm" onclick="toggleCrearProdIngreso()">Cancelar</button>
+            </div>
+          </div>
           <div id="ing-item-form" style="display:none;background:var(--bg);border-radius:var(--radius-sm);padding:10px;margin-bottom:10px;border:1px solid var(--border)">
             <div style="font-weight:600;font-size:13px;margin-bottom:4px" id="ing-item-nombre"></div>
             <div style="font-size:12px;color:var(--text2);margin-bottom:8px" id="ing-item-info"></div>
@@ -1008,6 +1028,37 @@ async function renderStock(){
 }
 
 // ── INGRESO ────────────────────────────────────────────────────────────────────
+function toggleCrearProdIngreso(){
+  var el=document.getElementById('ing-crear-prod');
+  var visible=el.style.display!=='none';
+  el.style.display=visible?'none':'block';
+  if(!visible){
+    // Poblar selects
+    document.getElementById('icp-cat').innerHTML=state.categorias.map(function(c){ return '<option value="'+c.id+'">'+c.nombre+'</option>'; }).join('');
+    document.getElementById('icp-prov').innerHTML=state.proveedores.map(function(p){ return '<option value="'+p.id+'">'+p.nombre+'</option>'; }).join('');
+    document.getElementById('icp-nombre').focus();
+  }
+}
+
+async function crearProdDesdeIngreso(){
+  var nombre=document.getElementById('icp-nombre').value.trim();
+  var catId=parseInt(document.getElementById('icp-cat').value);
+  var provId=parseInt(document.getElementById('icp-prov').value);
+  var precio=parseFloat(document.getElementById('icp-precio').value)||0;
+  var barcode=document.getElementById('icp-barcode').value.trim()||null;
+  var min=parseFloat(document.getElementById('icp-min').value)||0;
+  if(!nombre||!precio){ toast('Completa nombre y precio',false); return; }
+  var r=await sb.from('productos').insert({nombre:nombre,categoria_id:catId,proveedor_id:provId,precio:precio,stock:0,stock_minimo:min,por_peso:false,codigo_barras:barcode,activo:true}).select().single();
+  if(r.error){ toast('Error al crear: '+r.error.message,false); return; }
+  await loadProductos();
+  // Seleccionarlo automaticamente para agregar al ingreso
+  selItemIngreso(r.data.id);
+  // Limpiar y cerrar
+  document.getElementById('icp-nombre').value=''; document.getElementById('icp-precio').value=''; document.getElementById('icp-barcode').value='';
+  document.getElementById('ing-crear-prod').style.display='none';
+  toast('Producto "'+nombre+'" creado');
+}
+
 function initIngresoForm(){
   ingresoItems=[]; ingresoItemActual=null;
   document.getElementById('ing-prov').innerHTML='<option value="">- Seleccionar -</option>'
@@ -1235,16 +1286,17 @@ async function importCSVControles(input){
     });
   }
   if(!rows.length){ toast('Sin filas validas',false); return; }
-  // Insertar en lotes de 100
-  var total=0;
-  for(var j=0;j<rows.length;j+=100){
-    var batch=rows.slice(j,j+100);
-    var r=await sb.from('productos').upsert(batch,{onConflict:'codigo_barras'});
-    if(r.error){ toast('Error al importar: '+r.error.message,false); return; }
-    total+=batch.length;
+  var creados=0, omitidos=0;
+  for(var j=0;j<rows.length;j++){
+    var row=rows[j];
+    // Verificar si ya existe por codigo_barras
+    var existe=state.productos.find(function(p){ return p.codigo_barras&&p.codigo_barras.toUpperCase()===row.codigo_barras.toUpperCase(); });
+    if(existe){ omitidos++; continue; }
+    var r=await sb.from('productos').insert(row);
+    if(!r.error) creados++;
   }
   await loadProductos(); renderProdTable(); renderProdGrid();
-  toast(total+' controles importados/actualizados');
+  toast(creados+' controles importados' + (omitidos>0?' ('+omitidos+' ya existian)':''));
   input.value='';
 }
 
