@@ -140,11 +140,26 @@ tr:hover td{background:#fafaf8}
 .cb-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer}
 .cb-row:hover{background:var(--bg)}
 .cb-row input[type=checkbox]{width:auto;cursor:pointer}
+
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area { position: fixed; top: 0; left: 0; width: 100%; }
+  @page { margin: 0; size: 80mm auto; }
+}
+.print-receipt { font-family: 'Courier New', monospace; font-size: 12px; width: 100%; max-width: 300px; margin: 0 auto; padding: 8px; }
+.print-receipt .pr-center { text-align: center; }
+.print-receipt .pr-line { border-top: 1px dashed #000; margin: 6px 0; }
+.print-receipt .pr-row { display: flex; justify-content: space-between; margin: 2px 0; }
+.print-receipt .pr-bold { font-weight: bold; }
+.print-receipt .pr-big { font-size: 15px; font-weight: bold; }
 </style>
 </head>
 <body>
 
 <!-- LOGIN -->
+<div id="print-area" style="display:none"></div>
+
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">🏪</div>
@@ -379,7 +394,7 @@ tr:hover td{background:#fafaf8}
         <div class="card"><p style="font-weight:600;margin-bottom:12px">💳 Por medio de pago</p><div id="pago-break"></div></div>
       </div>
       <div class="card-flush">
-        <table><thead><tr><th>Fecha/Hora</th><th>Total</th><th>Pago</th><th>Items</th><th>Ajuste</th></tr></thead>
+        <table><thead><tr><th>Fecha/Hora</th><th>Total</th><th>Pago</th><th>Items</th><th>Ajuste</th><th></th></tr></thead>
         <tbody id="sales-table"></tbody></table>
       </div>
     </div>
@@ -1020,14 +1035,10 @@ async function finalizeSale(){
       }
     }
     var snap=state.cart.slice();
-    document.getElementById('last-receipt').innerHTML='<div class="receipt">'
-      +'<div style="font-weight:600;margin-bottom:6px">Comprobante #'+vr.data.id+' - '+timeStr+'</div>'
-      +snap.map(function(it){ return '<div class="row-between" style="font-size:12px;margin-bottom:2px"><span>'+it.name+'</span><span>'+fmt(it.total)+'</span></div>'; }).join('')
-      +(r.type!=='none'?'<div style="font-size:12px;color:var(--text2);margin-top:4px">'+(r.type==='disc'?'Descuento':'Aumento')+' '+r.val+'%</div>':'')
-      +'<div class="row-between" style="font-weight:600;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)"><span>Total</span><span style="color:var(--success)">'+fmt(r.total)+'</span></div>'
-      +'<div style="font-size:12px;color:var(--text2);margin-top:2px">'+pago+'</div></div>';
     state.cart=[]; renderCart(); renderProdGrid();
     document.getElementById('disc-type').value='none'; document.getElementById('disc-val').value='';
+    // Imprimir automaticamente
+    imprimirVenta({id:vr.data.id, fecha:now, items:snap, total:r.total, type:r.type, val:r.val, pago:pago});
     toast('Venta #'+vr.data.id+' registrada');
   }catch(e){ toast('Error al registrar venta',false); console.error(e); }
   btn.disabled=false; btn.textContent='Cobrar y registrar venta';
@@ -1408,7 +1419,17 @@ async function loadReportes(){
   var pgMap={};
   state.ventasData.forEach(function(v){ if(!pgMap[v.medio_pago]) pgMap[v.medio_pago]=0; pgMap[v.medio_pago]+=parseFloat(v.total); });
   document.getElementById('pago-break').innerHTML=Object.keys(pgMap).map(function(k){ return '<div class="row-between" style="padding:6px 0;border-bottom:1px solid var(--border)"><span>'+k+'</span><span style="font-weight:600;color:var(--success)">'+fmt(pgMap[k])+'</span></div>'; }).join('')||'<div style="color:var(--text3);font-size:13px">Sin datos</div>';
-  document.getElementById('sales-table').innerHTML=state.ventasData.slice(0,50).map(function(v){ var adj=v.descuento_tipo?(v.descuento_tipo==='disc'?'Desc.':'Aum.')+' '+v.descuento_valor+'%':'—'; return '<tr><td style="font-size:12px">'+fmtDT(v.created_at)+'</td><td style="font-weight:600;color:var(--success)">'+fmt(v.total)+'</td><td style="font-size:12px">'+v.medio_pago+'</td><td>'+(v.venta_items?v.venta_items.length:0)+'</td><td style="font-size:12px">'+adj+'</td></tr>'; }).join('')||'<tr><td colspan="5" style="color:var(--text3);padding:12px;text-align:center">Sin ventas</td></tr>';
+  document.getElementById('sales-table').innerHTML=state.ventasData.slice(0,50).map(function(v){
+    var adj=v.descuento_tipo?(v.descuento_tipo==='disc'?'Desc.':'Aum.')+' '+v.descuento_valor+'%':'—';
+    return '<tr>'
+      +'<td style="font-size:12px">'+fmtDT(v.created_at)+'</td>'
+      +'<td style="font-weight:600;color:var(--success)">'+fmt(v.total)+'</td>'
+      +'<td style="font-size:12px">'+v.medio_pago+'</td>'
+      +'<td>'+(v.venta_items?v.venta_items.length:0)+'</td>'
+      +'<td style="font-size:12px">'+adj+'</td>'
+      +'<td><button class="btn btn-sm" onclick="reimprimirVenta('+v.id+')" title="Reimprimir">🖨️</button></td>'
+      +'</tr>';
+  }).join('')||'<tr><td colspan="6" style="color:var(--text3);padding:12px;text-align:center">Sin ventas</td></tr>';
 }
 function exportCSV(){
   if(!state.ventasData.length){ toast('Sin datos',false); return; }
@@ -1460,6 +1481,76 @@ async function addProveedor(){
   await sb.from('proveedores').insert({nombre:nombre,contacto:document.getElementById('np2-contacto').value,telefono:document.getElementById('np2-tel').value,rubro:document.getElementById('np2-rubro').value,notas:document.getElementById('np2-tipo').value});
   ['np2-nombre','np2-contacto','np2-tel','np2-rubro'].forEach(function(id){ document.getElementById(id).value=''; }); document.getElementById('np2-tipo').value='';
   await loadProveedores(); toast('Proveedor agregado');
+}
+
+// ── IMPRESION ──────────────────────────────────────────────────────────────────
+var NEGOCIO = {
+  nombre: 'LocuLara Soluciones',
+  direccion: 'Lara 730, Canuela',
+  telefono: '2226 601996',
+  cuit: 'CUIT 20-35113027-0',
+  instagram: '@locularasoluciones',
+  slogan: 'LocuLara Soluciones diarias'
+};
+
+function buildReceiptHTML(data){
+  var linea = '<div class="pr-line"></div>';
+  var rows = data.items.map(function(it){
+    var qty = it.qty > 1 && !it.peso ? it.qty + ' x ' + fmt(it.price) : '';
+    return '<div class="pr-row"><span>' + (qty?qty+' ':'') + it.name + '</span><span>' + fmt(it.total) + '</span></div>';
+  }).join('');
+  var adj = '';
+  if(data.type && data.type !== 'none'){
+    adj = '<div class="pr-row"><span>' + (data.type==='disc'?'Descuento':'Aumento') + ' ' + data.val + '%</span><span></span></div>';
+  }
+  var fecha = data.fecha instanceof Date ? data.fecha : new Date(data.fecha);
+  var fechaStr = fecha.toLocaleDateString('es-AR') + ' ' + fecha.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  return '<div class="print-receipt">'
+    + '<div class="pr-center pr-bold" style="font-size:14px">' + NEGOCIO.nombre + '</div>'
+    + '<div class="pr-center">' + NEGOCIO.direccion + '</div>'
+    + '<div class="pr-center">Tel: ' + NEGOCIO.telefono + '</div>'
+    + '<div class="pr-center">' + NEGOCIO.cuit + '</div>'
+    + '<div class="pr-center">IG: ' + NEGOCIO.instagram + '</div>'
+    + linea
+    + '<div class="pr-row"><span>Comprobante #' + data.id + '</span><span>' + fechaStr + '</span></div>'
+    + '<div class="pr-row"><span>Atendio: ' + (state.user ? state.user.nombre : '') + '</span></div>'
+    + linea
+    + rows
+    + adj
+    + linea
+    + '<div class="pr-row pr-bold pr-big"><span>TOTAL</span><span>' + fmt(data.total) + '</span></div>'
+    + '<div class="pr-row"><span>Medio de pago</span><span>' + data.pago + '</span></div>'
+    + linea
+    + '<div class="pr-center" style="margin-top:4px;font-style:italic">' + NEGOCIO.slogan + '</div>'
+    + '<div style="height:20px"></div>'
+    + '</div>';
+}
+
+function imprimirVenta(data){
+  var area = document.getElementById('print-area');
+  area.innerHTML = buildReceiptHTML(data);
+  area.style.display = 'block';
+  setTimeout(function(){
+    window.print();
+    setTimeout(function(){ area.style.display='none'; },500);
+  }, 150);
+}
+
+async function reimprimirVenta(ventaId){
+  var v = state.ventasData.find(function(x){ return x.id===ventaId; });
+  if(!v){ toast('Venta no encontrada',false); return; }
+  var items = (v.venta_items||[]).map(function(i){
+    return {name:i.nombre_snapshot, price:i.precio_unitario, qty:i.cantidad, total:i.total, peso:false};
+  });
+  imprimirVenta({
+    id: v.id,
+    fecha: v.created_at,
+    items: items,
+    total: v.total,
+    type: v.descuento_tipo,
+    val: v.descuento_valor,
+    pago: v.medio_pago
+  });
 }
 
 loadUsers();
