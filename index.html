@@ -8,13 +8,13 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f8f7f4;--surface:#fff;--border:#e5e3dc;--border2:#ccc9be;
-  --text:#1a1a18;--text2:#666460;--text3:#999793;
-  --primary:#534AB7;--primary-bg:#EEEDFE;--primary-dark:#3C3489;
-  --success:#0F6E56;--success-bg:#E1F5EE;
-  --warning:#BA7517;--warning-bg:#FAEEDA;
+  --bg:#F5E6C8;--surface:#FBF5E6;--border:#DFC48A;--border2:#C9A96E;
+  --text:#2C1A0E;--text2:#6B4226;--text3:#A0724A;
+  --primary:#B8621F;--primary-bg:#FAECD4;--primary-dark:#8C4615;
+  --success:#4A7C3F;--success-bg:#E8F5E4;
+  --warning:#C4872A;--warning-bg:#FEF3DC;
   --danger:#A32D2D;--danger-bg:#FCEBEB;
-  --info:#185FA5;--info-bg:#E6F1FB;
+  --info:#7A5C2E;--info-bg:#F5EBDA;
   --radius:10px;--radius-sm:7px;
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
@@ -31,18 +31,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .pin-input:focus{outline:none;border-color:var(--primary)}
 .login-error{color:var(--danger);font-size:13px;margin-top:6px}
 #app{display:none;flex-direction:column;min-height:100vh}
-.topbar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.topbar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#2C1A0E;border-bottom:1px solid #1a0f08;position:sticky;top:0;z-index:50}
 .topbar-logo{font-size:20px}
-.topbar-title{font-size:15px;font-weight:600;flex:1}
+.topbar-title{font-size:15px;font-weight:600;flex:1;color:#FBF5E6}
 .badge{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:500}
-.badge-admin{background:var(--primary-bg);color:var(--primary-dark)}
-.badge-op{background:var(--success-bg);color:var(--success)}
-.btn-logout{padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;background:transparent;color:var(--text2);font-size:12px}
-.btn-logout:hover{background:var(--danger-bg);color:var(--danger)}
-.nav{display:flex;gap:2px;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto}
-.nav-btn{padding:7px 14px;border:1px solid transparent;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;background:transparent;color:var(--text2);white-space:nowrap;transition:all .15s}
-.nav-btn:hover{background:var(--bg);color:var(--text)}
-.nav-btn.active{background:var(--surface);color:var(--text);border-color:var(--border);font-weight:500}
+.badge-admin{background:#C4872A;color:#FBF5E6}
+.badge-op{background:#4A7C3F;color:#E8F5E4}
+.btn-logout{padding:6px 12px;border:1px solid #6B4226;border-radius:var(--radius-sm);cursor:pointer;background:transparent;color:#DFC48A;font-size:12px}
+.btn-logout:hover{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
+.nav{display:flex;gap:2px;padding:8px 12px;background:#3D2210;border-bottom:1px solid #2C1A0E;overflow-x:auto}
+.nav-btn{padding:7px 14px;border:1px solid transparent;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;background:transparent;color:#DFC48A;white-space:nowrap;transition:all .15s}
+.nav-btn:hover{background:#4A2A14;color:#FBF5E6}
+.nav-btn.active{background:var(--surface);color:var(--primary-dark);border-color:var(--border);font-weight:600}
 .content{padding:16px;flex:1;max-width:1100px;width:100%;margin:0 auto}
 .section{display:none}.section.active{display:block}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
@@ -116,7 +116,7 @@ tr:hover td{background:#fafaf8}
 @keyframes spin{to{transform:rotate(360deg)}}
 .receipt{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;font-size:13px;margin-top:12px}
 .linea-input{width:100%;padding:12px 14px;font-size:15px;border:2px solid var(--primary);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);outline:none;font-family:inherit}
-.linea-input:focus{border-color:var(--primary-dark)}
+.linea-input:focus{border-color:var(--primary-dark);box-shadow:0 0 0 3px rgba(184,98,31,.15)}
 .sugerencias{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:2px;max-height:220px;overflow-y:auto;position:relative;z-index:50}
 .sug-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px}
 .sug-item:hover{background:var(--bg)}
