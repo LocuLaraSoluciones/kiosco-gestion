@@ -1274,6 +1274,8 @@ function populateProdForm(){
   if(sel) sel.innerHTML='<option value="">Todas las categorias</option>'+state.categorias.map(function(c){ return '<option value="'+c.nombre+'">'+c.nombre+'</option>'; }).join('');
   renderPrecios();
 }
+var _prodListFiltered = [];
+
 function renderProdTable(){
   var q=(document.getElementById('prod-list-search')||{value:''}).value.toLowerCase();
   var catF=(document.getElementById('prod-list-cat')||{value:''}).value;
@@ -1281,19 +1283,121 @@ function renderProdTable(){
     var cat=p.categorias?p.categorias.nombre:'';
     return(!q||p.nombre.toLowerCase().indexOf(q)>-1||(p.codigo_barras&&p.codigo_barras.toLowerCase().indexOf(q)>-1))&&(!catF||cat===catF);
   });
-  document.getElementById('prod-table').innerHTML=prods.map(function(p){
+  _prodListFiltered = prods;
+  var isAdmin = state.user && state.user.rol === 'admin';
+  document.getElementById('prod-table').innerHTML=prods.map(function(p, idx){
     var cat=p.categorias?p.categorias.nombre:'';
     var esCtrl=CTRL_CATS.indexOf(cat)>-1;
-    return '<tr><td><strong>'+p.nombre+'</strong>'
+    var sinControl = p.stock_minimo === 0;
+    var stockCell = sinControl
+      ? '<span style="font-weight:600;color:var(--text3)">inf</span>'
+      : '<span id="stock-val-'+p.id+'" style="font-weight:600">'+p.stock+'</span>';
+    var editStockBtn = (isAdmin && !sinControl)
+      ? '<button class="btn btn-sm" style="margin-right:4px;font-size:11px;padding:3px 7px" onclick="activarEditStock('+p.id+','+idx+')" title="Editar stock">📦</button>'
+      : '';
+    return '<tr id="prod-row-'+idx+'">'
+      +'<td><strong>'+p.nombre+'</strong>'
       +(p.codigo_barras?'<div style="font-size:11px;font-family:monospace;color:var(--text3)">ECR: '+p.codigo_barras+'</div>':'')
       +(p.notas&&esCtrl?'<div style="font-size:11px;font-family:monospace;color:var(--text3)">Univ: '+p.notas+'</div>':'')+'</td>'
       +'<td><span class="tag '+(esCtrl?'tag-purple':'tag-blue')+'">'+cat+'</span></td>'
       +'<td style="font-weight:600;color:var(--success)">'+fmt(p.precio)+'</td>'
-      +'<td><span style="font-weight:600">'+(p.stock_minimo===0?'inf':p.stock)+'</span></td>'
+      +'<td id="stock-cell-'+p.id+'">'+stockCell+'</td>'
       +'<td style="font-size:12px;color:var(--text2)">'+(p.proveedores?p.proveedores.nombre:'-')+'</td>'
-      +'<td><button class="btn btn-sm" onclick="editProduct('+p.id+')" style="margin-right:4px">E</button>'
-      +'<button class="btn btn-sm btn-danger" onclick="deleteProduct('+p.id+')">X</button></td></tr>';
+      +'<td>'+editStockBtn
+      +(isAdmin?'<button class="btn btn-sm" onclick="editProduct('+p.id+')" style="margin-right:4px">E</button>':'')
+      +(isAdmin?'<button class="btn btn-sm btn-danger" onclick="deleteProduct('+p.id+')">X</button>':'')
+      +'</td></tr>';
   }).join('');
+}
+
+function activarEditStock(prodId, idx){
+  // Si ya hay un input activo, guardarlo primero
+  var activeInput = document.querySelector('.stock-edit-input');
+  if(activeInput) {
+    var activeProdId = parseInt(activeInput.getAttribute('data-prod-id'));
+    guardarStockSilencioso(activeProdId, activeInput.value, function(){
+      mostrarInputStock(prodId, idx);
+    });
+    return;
+  }
+  mostrarInputStock(prodId, idx);
+}
+
+function mostrarInputStock(prodId, idx){
+  var cell = document.getElementById('stock-cell-'+prodId);
+  var p = state.productos.find(function(x){ return x.id===prodId; });
+  if(!cell || !p) return;
+  cell.innerHTML = '<input class="stock-edit-input" type="number" min="0"'
+    +' data-prod-id="'+prodId+'" data-idx="'+idx+'"'
+    +' value="'+p.stock+'"'
+    +' style="width:70px;padding:4px 6px;font-size:13px;font-weight:600;border:2px solid var(--primary);border-radius:5px;background:var(--surface);color:var(--text);text-align:center"'
+    +' onkeydown="handleStockKey(event,'+prodId+','+idx+')"'
+    +' onblur="handleStockBlur(this,'+prodId+')"'
+    +'>';
+  setTimeout(function(){
+    var input = cell.querySelector('input');
+    if(input){ input.focus(); input.select(); }
+  }, 30);
+}
+
+function handleStockKey(e, prodId, idx){
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    var input = e.target;
+    guardarStockSilencioso(prodId, input.value, function(){
+      // Pasar al siguiente producto con stock controlado
+      var nextIdx = idx + 1;
+      while(nextIdx < _prodListFiltered.length){
+        var np = _prodListFiltered[nextIdx];
+        if(np.stock_minimo > 0){ // solo los que tienen control de stock
+          mostrarInputStock(np.id, nextIdx);
+          // Scroll al elemento
+          var row = document.getElementById('prod-row-'+nextIdx);
+          if(row) row.scrollIntoView({block:'nearest', behavior:'smooth'});
+          return;
+        }
+        nextIdx++;
+      }
+      toast('Stock actualizado en todos los productos');
+    });
+  } else if(e.key === 'Escape'){
+    var p = state.productos.find(function(x){ return x.id===prodId; });
+    var cell = document.getElementById('stock-cell-'+prodId);
+    if(cell && p) cell.innerHTML = '<span id="stock-val-'+prodId+'" style="font-weight:600">'+p.stock+'</span>';
+  }
+}
+
+function handleStockBlur(input, prodId){
+  // Pequeño delay para no interferir con el Enter
+  setTimeout(function(){
+    var cell = document.getElementById('stock-cell-'+prodId);
+    if(cell && cell.querySelector('.stock-edit-input')){
+      guardarStockSilencioso(prodId, input.value, null);
+    }
+  }, 200);
+}
+
+async function guardarStockSilencioso(prodId, valor, callback){
+  var nuevoStock = parseInt(valor) || 0;
+  if(nuevoStock < 0) nuevoStock = 0;
+  var p = state.productos.find(function(x){ return x.id===prodId; });
+  if(!p){ if(callback) callback(); return; }
+  var cell = document.getElementById('stock-cell-'+prodId);
+  // Mostrar indicador de guardado
+  if(cell) cell.innerHTML = '<span style="font-size:11px;color:var(--text3)">...</span>';
+  var r = await sb.from('productos').update({stock: nuevoStock}).eq('id', prodId);
+  if(!r.error){
+    p.stock = nuevoStock;
+    if(cell) cell.innerHTML = '<span id="stock-val-'+prodId+'" style="font-weight:600;color:var(--primary)">'+nuevoStock+'</span>';
+    // Volver al color normal luego de 1 segundo
+    setTimeout(function(){
+      var sp = document.getElementById('stock-val-'+prodId);
+      if(sp) sp.style.color = '';
+    }, 1000);
+  } else {
+    if(cell) cell.innerHTML = '<span style="color:var(--danger);font-weight:600">Error</span>';
+  }
+  if(callback) callback();
 }
 async function saveProduct(){
   var nombre=document.getElementById('np-nombre').value.trim();
