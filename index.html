@@ -187,6 +187,7 @@ tr:hover td{background:#fafaf8}
     <button class="nav-btn active" onclick="showSection('ventas',this)">🛒 Ventas</button>
     <button class="nav-btn" onclick="showSection('stock',this)">📦 Stock</button>
     <button class="nav-btn" onclick="showSection('ingreso',this)">🚚 Ingreso</button>
+    <button class="nav-btn" onclick="showSection('tickets',this)">🧾 Tickets del dia</button>
     <button class="nav-btn admin-only" onclick="showSection('productos',this)">🏷️ Productos</button>
     <button class="nav-btn admin-only" onclick="showSection('reportes',this)">📊 Reportes</button>
     <button class="nav-btn admin-only" onclick="showSection('precios',this)">💲 Precios</button>
@@ -241,6 +242,28 @@ tr:hover td{background:#fafaf8}
           <button class="btn btn-success btn-full" onclick="finalizeSale()" id="btn-cobrar">✅ Cobrar y registrar venta</button>
           <div id="last-receipt"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- TICKETS DEL DIA -->
+    <div class="section" id="sec-tickets">
+      <div class="row-between" style="margin-bottom:14px">
+        <span style="font-size:15px;font-weight:600">🧾 Tickets del dia</span>
+        <div class="row" style="gap:6px">
+          <input type="date" id="tickets-fecha" onchange="loadTickets()">
+          <button class="btn btn-sm" onclick="loadTickets()">🔄 Actualizar</button>
+        </div>
+      </div>
+      <div id="tickets-stats" class="grid4" style="margin-bottom:14px"></div>
+      <div class="card-flush">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Hora</th><th>Atendio</th><th>Items</th><th>Medio de pago</th><th>Total</th><th></th>
+          </tr></thead>
+          <tbody id="tickets-table">
+            <tr><td colspan="7" class="loading"><span class="spinner"></span>Cargando...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -695,6 +718,7 @@ function showSection(s,btn){
   if(s==='productos'){ populateProdForm(); renderProdTable(); }
   if(s==='ingreso'){ initIngresoForm(); loadIngresos(); }
   if(s==='config'){ loadUsersTable(); renderCatsList(); }
+  if(s==='tickets'){ document.getElementById('tickets-fecha').value=today(); loadTickets(); }
   if(s==='ventas') focusLinea();
 }
 
@@ -1507,6 +1531,72 @@ async function addProveedor(){
   await sb.from('proveedores').insert({nombre:nombre,contacto:document.getElementById('np2-contacto').value,telefono:document.getElementById('np2-tel').value,rubro:document.getElementById('np2-rubro').value,notas:document.getElementById('np2-tipo').value});
   ['np2-nombre','np2-contacto','np2-tel','np2-rubro'].forEach(function(id){ document.getElementById(id).value=''; }); document.getElementById('np2-tipo').value='';
   await loadProveedores(); toast('Proveedor agregado');
+}
+
+// ── TICKETS DEL DIA ────────────────────────────────────────────────────────────
+async function loadTickets(){
+  var fecha = document.getElementById('tickets-fecha').value || today();
+  var r = await sb.from('ventas')
+    .select('*, venta_items(*)')
+    .gte('created_at', fecha + 'T00:00:00')
+    .lte('created_at', fecha + 'T23:59:59')
+    .order('created_at', {ascending: false});
+
+  var ventas = r.data || [];
+
+  // Stats
+  var totalDia = ventas.reduce(function(a,b){ return a + parseFloat(b.total); }, 0);
+  var porPago = {};
+  ventas.forEach(function(v){ if(!porPago[v.medio_pago]) porPago[v.medio_pago]=0; porPago[v.medio_pago]+=parseFloat(v.total); });
+  var statsHtml = '<div class="metric-card"><div class="metric-label">Tickets</div><div class="metric-value">' + ventas.length + '</div></div>'
+    + '<div class="metric-card"><div class="metric-label">Total del dia</div><div class="metric-value" style="color:var(--success)">' + fmt(totalDia) + '</div></div>'
+    + Object.keys(porPago).map(function(k){
+        return '<div class="metric-card"><div class="metric-label">' + k + '</div><div class="metric-value" style="font-size:16px">' + fmt(porPago[k]) + '</div></div>';
+      }).join('');
+  document.getElementById('tickets-stats').innerHTML = statsHtml;
+
+  // Tabla
+  var tb = document.getElementById('tickets-table');
+  if(!ventas.length){
+    tb.innerHTML = '<tr><td colspan="7" style="color:var(--text3);padding:16px;text-align:center">Sin tickets para esta fecha</td></tr>';
+    return;
+  }
+
+  tb.innerHTML = ventas.map(function(v){
+    var hora = new Date(v.created_at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    var items = v.venta_items ? v.venta_items.length : 0;
+    var detalle = v.venta_items ? v.venta_items.map(function(i){ return i.nombre_snapshot; }).join(', ') : '';
+    return '<tr>'
+      + '<td style="font-weight:600">#' + v.id + '</td>'
+      + '<td>' + hora + '</td>'
+      + '<td style="font-size:12px;color:var(--text2)">' + (v.usuario||'-') + '</td>'
+      + '<td><span title="' + detalle + '" style="cursor:help">' + items + ' item(s)</span></td>'
+      + '<td><span class="tag tag-gray" style="font-size:11px">' + v.medio_pago + '</span></td>'
+      + '<td style="font-weight:600;color:var(--success)">' + fmt(v.total) + '</td>'
+      + '<td><button class="btn btn-sm" onclick="reimprimirVentaDesdeTickets(' + v.id + ')" title="Reimprimir">🖨️</button></td>'
+      + '</tr>';
+  }).join('');
+}
+
+async function reimprimirVentaDesdeTickets(ventaId){
+  // Buscar en los datos ya cargados
+  var tbody = document.getElementById('tickets-table');
+  // Hacer query directo para tener todos los datos
+  var r = await sb.from('ventas').select('*, venta_items(*)').eq('id', ventaId).single();
+  if(r.error || !r.data){ toast('No se pudo obtener el ticket', false); return; }
+  var v = r.data;
+  var items = (v.venta_items||[]).map(function(i){
+    return {name: i.nombre_snapshot, price: i.precio_unitario, qty: i.cantidad, total: i.total, peso: false};
+  });
+  imprimirVenta({
+    id: v.id,
+    fecha: v.created_at,
+    items: items,
+    total: v.total,
+    type: v.descuento_tipo,
+    val: v.descuento_valor,
+    pago: v.medio_pago
+  });
 }
 
 // ── PROVINCIA NET ─────────────────────────────────────────────────────────────
