@@ -200,7 +200,7 @@ tr:hover td{background:#fafaf8}
         <div class="row" style="margin-bottom:10px;gap:6px">
           <button class="btn btn-primary" style="flex:1;padding:9px 6px;font-size:12px" onclick="openProductModal()">📋 Ver productos</button>
           <button class="btn" style="flex:1;padding:9px 6px;font-size:12px;border-color:var(--warning);color:var(--warning);background:var(--warning-bg)" onclick="abrirDetalleModal('tramite',null)">🗂️ Tramites</button>
-
+          <button class="btn" style="flex:1;padding:9px 6px;font-size:12px;border-color:var(--info);color:var(--info);background:var(--info-bg)" onclick="abrirProvinciaNet()">🏦 Provincia Net</button>
         </div>
         <input class="linea-input" id="linea-activa" placeholder="Codigo, nombre o 'tramite'..." autocomplete="off" onkeydown="handleLinea(event)" oninput="liveSearch(this.value)">
         <div id="linea-sugs" class="sugerencias" style="display:none"></div>
@@ -493,6 +493,32 @@ tr:hover td{background:#fafaf8}
     </div>
     <div id="cat-filters" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px"></div>
     <div id="prod-grid" class="prod-grid" style="max-height:400px;overflow-y:auto"></div>
+  </div>
+</div>
+
+<!-- MODAL PROVINCIA NET -->
+<div id="modal-provincia-net" class="modal-overlay">
+  <div class="modal-box modal-sm">
+    <div class="row-between" style="margin-bottom:14px">
+      <span style="font-weight:600;font-size:15px">🏦 Provincia Net</span>
+      <button class="btn btn-sm" onclick="closeProvinciaNet()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="label">Monto del servicio ($)</label>
+      <input type="number" id="pn-monto" placeholder="0,00" min="0" step="0.01" style="font-size:18px;text-align:center" oninput="calcProvinciaNet()">
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--info-bg);border-radius:var(--radius-sm);margin-bottom:12px;cursor:pointer" onclick="togglePNEfectivo()">
+      <input type="checkbox" id="pn-efectivo" style="width:auto;cursor:pointer">
+      <label for="pn-efectivo" style="margin:0;font-size:13px;cursor:pointer;flex:1">Pago en efectivo <span style="color:var(--info);font-weight:600">(+10% recargo)</span></label>
+    </div>
+    <div class="row-between" style="font-size:16px;font-weight:600;margin-bottom:14px;padding:10px;background:var(--bg);border-radius:var(--radius-sm)">
+      <span>Total a cobrar</span>
+      <span id="pn-total" style="color:var(--success)">$0,00</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1" onclick="confirmarProvinciaNet()">✅ Agregar al ticket</button>
+      <button class="btn" onclick="closeProvinciaNet()">Cancelar</button>
+    </div>
   </div>
 </div>
 
@@ -1481,6 +1507,52 @@ async function addProveedor(){
   await sb.from('proveedores').insert({nombre:nombre,contacto:document.getElementById('np2-contacto').value,telefono:document.getElementById('np2-tel').value,rubro:document.getElementById('np2-rubro').value,notas:document.getElementById('np2-tipo').value});
   ['np2-nombre','np2-contacto','np2-tel','np2-rubro'].forEach(function(id){ document.getElementById(id).value=''; }); document.getElementById('np2-tipo').value='';
   await loadProveedores(); toast('Proveedor agregado');
+}
+
+// ── PROVINCIA NET ─────────────────────────────────────────────────────────────
+function abrirProvinciaNet(){
+  document.getElementById('modal-provincia-net').style.display = 'block';
+  document.getElementById('pn-monto').value = '';
+  document.getElementById('pn-efectivo').checked = false;
+  document.getElementById('pn-total').textContent = '$0,00';
+  setTimeout(function(){ document.getElementById('pn-monto').focus(); }, 80);
+}
+
+function closeProvinciaNet(){
+  document.getElementById('modal-provincia-net').style.display = 'none';
+  focusLinea();
+}
+
+function togglePNEfectivo(){
+  var cb = document.getElementById('pn-efectivo');
+  cb.checked = !cb.checked;
+  calcProvinciaNet();
+}
+
+function calcProvinciaNet(){
+  var monto = parseFloat(document.getElementById('pn-monto').value) || 0;
+  var efectivo = document.getElementById('pn-efectivo').checked;
+  var total = efectivo ? Math.round(monto * 1.10 * 100) / 100 : monto;
+  document.getElementById('pn-total').textContent = fmt(total);
+}
+
+function confirmarProvinciaNet(){
+  var monto = parseFloat(document.getElementById('pn-monto').value) || 0;
+  if(!monto || monto <= 0){ toast('Ingresa el monto', false); return; }
+  var efectivo = document.getElementById('pn-efectivo').checked;
+  var total = efectivo ? Math.round(monto * 1.10 * 100) / 100 : monto;
+  var label = 'Provincia Net' + (efectivo ? ' (efectivo +10%)' : '');
+  state.cart.push({
+    id: 'pn_' + Date.now(),
+    name: label,
+    price: total, qty: 1, total: total,
+    peso: false, tramite: true
+  });
+  // Preseleccionar efectivo como medio de pago si marcó esa opcion
+  if(efectivo) document.getElementById('payment-method').value = 'Efectivo';
+  renderCart();
+  closeProvinciaNet();
+  toast('Provincia Net agregado al ticket');
 }
 
 // ── IMPRESION ──────────────────────────────────────────────────────────────────
