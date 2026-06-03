@@ -496,6 +496,7 @@ tr:hover td{background:#fafaf8}
             </select>
           </div>
           <button class="btn btn-primary btn-full" onclick="addProveedor()">➕ Agregar proveedor</button>
+          <div id="provs-list" style="margin-top:14px"></div>
         </div>
       </div>
     </div>
@@ -686,6 +687,7 @@ function logout(){
 // ── INIT ───────────────────────────────────────────────────────────────────────
 async function initApp(){
   await Promise.all([loadProductos(),loadCategorias(),loadProveedores()]);
+  if(document.getElementById('provs-list')) renderCatsList();
   renderProdGrid();
   document.getElementById('ing-fecha').value=today();
   var h=today();
@@ -717,7 +719,10 @@ function showSection(s,btn){
   if(s==='precios') renderPrecios();
   if(s==='productos'){ populateProdForm(); renderProdTable(); }
   if(s==='ingreso'){ initIngresoForm(); loadIngresos(); }
-  if(s==='config'){ loadUsersTable(); renderCatsList(); }
+  if(s==='config'){
+    loadUsersTable();
+    Promise.all([loadCategorias(),loadProveedores()]).then(function(){ renderCatsList(); });
+  }
   if(s==='tickets'){ document.getElementById('tickets-fecha').value=today(); loadTickets(); }
   if(s==='ventas') focusLinea();
 }
@@ -1295,12 +1300,15 @@ function renderProdTable(){
     var editStockBtn = (isAdmin && !sinControl)
       ? '<button class="btn btn-sm" style="margin-right:4px;font-size:11px;padding:3px 7px" onclick="activarEditStock('+p.id+','+idx+')" title="Editar stock">📦</button>'
       : '';
+    var precioCell = isAdmin
+      ? '<td id="precio-cell-'+p.id+'" ondblclick="activarEditPrecio('+p.id+','+idx+')" title="Doble clic para editar" style="font-weight:600;color:var(--success);cursor:pointer"><span id="precio-val-'+p.id+'">'+fmt(p.precio)+'</span></td>'
+      : '<td style="font-weight:600;color:var(--success)">'+fmt(p.precio)+'</td>';
     return '<tr id="prod-row-'+idx+'">'
       +'<td><strong>'+p.nombre+'</strong>'
       +(p.codigo_barras?'<div style="font-size:11px;font-family:monospace;color:var(--text3)">ECR: '+p.codigo_barras+'</div>':'')
       +(p.notas&&esCtrl?'<div style="font-size:11px;font-family:monospace;color:var(--text3)">Univ: '+p.notas+'</div>':'')+'</td>'
       +'<td><span class="tag '+(esCtrl?'tag-purple':'tag-blue')+'">'+cat+'</span></td>'
-      +'<td style="font-weight:600;color:var(--success)">'+fmt(p.precio)+'</td>'
+      +precioCell
       +'<td id="stock-cell-'+p.id+'">'+stockCell+'</td>'
       +'<td style="font-size:12px;color:var(--text2)">'+(p.proveedores?p.proveedores.nombre:'-')+'</td>'
       +'<td>'+editStockBtn
@@ -1308,6 +1316,91 @@ function renderProdTable(){
       +(isAdmin?'<button class="btn btn-sm btn-danger" onclick="deleteProduct('+p.id+')">X</button>':'')
       +'</td></tr>';
   }).join('');
+}
+
+function activarEditPrecio(prodId, idx){
+  var activeInput = document.querySelector('.precio-edit-input');
+  if(activeInput){
+    var activeProdId = parseInt(activeInput.getAttribute('data-prod-id'));
+    guardarPrecioSilencioso(activeProdId, activeInput.value, function(){
+      mostrarInputPrecio(prodId, idx);
+    });
+    return;
+  }
+  mostrarInputPrecio(prodId, idx);
+}
+
+function mostrarInputPrecio(prodId, idx){
+  var cell = document.getElementById('precio-cell-'+prodId);
+  var p = state.productos.find(function(x){ return x.id===prodId; });
+  if(!cell || !p) return;
+  cell.innerHTML = '<input class="precio-edit-input" type="number" min="0" step="0.01"'
+    +' data-prod-id="'+prodId+'" data-idx="'+idx+'"'
+    +' value="'+p.precio+'"'
+    +' style="width:90px;padding:4px 6px;font-size:13px;font-weight:600;border:2px solid var(--primary);border-radius:5px;background:var(--surface);color:var(--text);text-align:center"'
+    +' onkeydown="handlePrecioKey(event,'+prodId+','+idx+')"'
+    +' onblur="handlePrecioBlur(this,'+prodId+')"'
+    +'>';
+  setTimeout(function(){
+    var input = cell.querySelector('input');
+    if(input){ input.focus(); input.select(); }
+  }, 30);
+}
+
+function handlePrecioKey(e, prodId, idx){
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    var input = e.target;
+    guardarPrecioSilencioso(prodId, input.value, function(){
+      var nextIdx = idx + 1;
+      while(nextIdx < _prodListFiltered.length){
+        var np = _prodListFiltered[nextIdx];
+        mostrarInputPrecio(np.id, nextIdx);
+        var row = document.getElementById('prod-row-'+nextIdx);
+        if(row) row.scrollIntoView({block:'nearest', behavior:'smooth'});
+        return;
+        nextIdx++;
+      }
+      toast('Precios actualizados');
+    });
+  } else if(e.key === 'Escape'){
+    var p = state.productos.find(function(x){ return x.id===prodId; });
+    var cell = document.getElementById('precio-cell-'+prodId);
+    if(cell && p) cell.innerHTML = '<span id="precio-val-'+prodId+'">'+fmt(p.precio)+'</span>';
+  }
+}
+
+function handlePrecioBlur(input, prodId){
+  setTimeout(function(){
+    var cell = document.getElementById('precio-cell-'+prodId);
+    if(cell && cell.querySelector('.precio-edit-input')){
+      guardarPrecioSilencioso(prodId, input.value, null);
+    }
+  }, 200);
+}
+
+async function guardarPrecioSilencioso(prodId, valor, callback){
+  var nuevoPrecio = parseFloat(valor) || 0;
+  if(nuevoPrecio < 0) nuevoPrecio = 0;
+  var p = state.productos.find(function(x){ return x.id===prodId; });
+  if(!p){ if(callback) callback(); return; }
+  var cell = document.getElementById('precio-cell-'+prodId);
+  if(cell) cell.innerHTML = '<span style="font-size:11px;color:var(--text3)">...</span>';
+  var r = await sb.from('productos').update({precio: nuevoPrecio}).eq('id', prodId);
+  if(!r.error){
+    p.precio = nuevoPrecio;
+    if(cell){
+      cell.innerHTML = '<span id="precio-val-'+prodId+'" style="font-weight:600;color:var(--primary)">'+fmt(nuevoPrecio)+'</span>';
+      cell.ondblclick = function(){ activarEditPrecio(prodId, parseInt(cell.closest('tr').id.replace('prod-row-',''))); };
+      setTimeout(function(){
+        var sp = document.getElementById('precio-val-'+prodId);
+        if(sp) sp.style.color = 'var(--success)';
+      }, 1000);
+    }
+  } else {
+    if(cell) cell.innerHTML = '<span style="color:var(--danger);font-weight:600">Error</span>';
+  }
+  if(callback) callback();
 }
 
 function activarEditStock(prodId, idx){
@@ -1624,7 +1717,45 @@ async function addUser(){
   document.getElementById('nu-nombre').value=''; document.getElementById('nu-pin').value='';
   await loadUsersTable(); toast('Usuario creado');
 }
-function renderCatsList(){ document.getElementById('cats-list').innerHTML=state.categorias.map(function(c){ return '<span class="tag tag-purple" style="margin:3px">'+c.nombre+'</span>'; }).join(''); }
+function renderCatsList(){
+  var isAdmin = state.user && state.user.rol === 'admin';
+  document.getElementById('cats-list').innerHTML = state.categorias.map(function(c){
+    return '<span style="display:inline-flex;align-items:center;gap:4px;margin:3px;background:var(--primary-bg);color:var(--primary-dark);padding:3px 8px;border-radius:20px;font-size:12px;font-weight:500">'
+      + c.nombre
+      + (isAdmin ? '<button onclick="eliminarCategoria('+c.id+',''+c.nombre.replace(/'/g,"\'")+'')" style="border:none;background:none;cursor:pointer;color:var(--danger);font-size:13px;line-height:1;padding:0 0 0 4px" title="Eliminar">×</button>' : '')
+      + '</span>';
+  }).join('');
+  // Proveedores
+  var pl = document.getElementById('provs-list');
+  if(pl){
+    pl.innerHTML = '<p style="font-weight:600;font-size:13px;margin-bottom:8px">Proveedores cargados</p>'
+      + '<div class="card-flush"><table><thead><tr><th>Nombre</th><th>Tipo</th><th>Contacto</th>'+(isAdmin?'<th></th>':'')+'</tr></thead><tbody>'
+      + state.proveedores.map(function(p){
+          return '<tr><td><strong>'+p.nombre+'</strong></td>'
+            +'<td style="font-size:12px;color:var(--text2)">'+(p.notas||'-')+'</td>'
+            +'<td style="font-size:12px;color:var(--text2)">'+(p.contacto||'-')+(p.telefono?' · '+p.telefono:'')+'</td>'
+            +(isAdmin?'<td><button class="btn btn-sm btn-danger" onclick="eliminarProveedor('+p.id+',''+p.nombre.replace(/'/g,"\'")+'')" title="Eliminar">X</button></td>':'')
+            +'</tr>';
+        }).join('')
+      + '</tbody></table></div>';
+  }
+}
+async function eliminarCategoria(id, nombre){
+  if(!confirm('Eliminar categoria "'+nombre+'"?\nLos productos de esta categoria quedarán sin categoria asignada.')) return;
+  var r = await sb.from('categorias').delete().eq('id', id);
+  if(r.error){ toast('Error: '+r.error.message, false); return; }
+  await loadCategorias(); renderCatsList(); renderProdGrid();
+  toast('Categoria "'+nombre+'" eliminada');
+}
+
+async function eliminarProveedor(id, nombre){
+  if(!confirm('Eliminar proveedor "'+nombre+'"?\nLos productos de este proveedor quedarán sin proveedor asignado.')) return;
+  var r = await sb.from('proveedores').delete().eq('id', id);
+  if(r.error){ toast('Error: '+r.error.message, false); return; }
+  await loadProveedores(); renderCatsList();
+  toast('Proveedor "'+nombre+'" eliminado');
+}
+
 async function addCategoria(){
   var nombre=document.getElementById('nueva-cat').value.trim(); if(!nombre){ toast('Ingresa un nombre',false); return; }
   await sb.from('categorias').insert({nombre:nombre}); document.getElementById('nueva-cat').value='';
