@@ -1722,7 +1722,7 @@ function renderCatsList(){
   document.getElementById('cats-list').innerHTML = state.categorias.map(function(c){
     return '<span style="display:inline-flex;align-items:center;gap:4px;margin:3px;background:var(--primary-bg);color:var(--primary-dark);padding:3px 8px;border-radius:20px;font-size:12px;font-weight:500">'
       + c.nombre
-      + (isAdmin ? '<button onclick="eliminarCategoria('+c.id+',''+c.nombre.replace(/'/g,"\'")+'')" style="border:none;background:none;cursor:pointer;color:var(--danger);font-size:13px;line-height:1;padding:0 0 0 4px" title="Eliminar">×</button>' : '')
+      + (isAdmin ? '<button onclick="eliminarCategoria('+c.id+',this)" style="border:none;background:none;cursor:pointer;color:var(--danger);font-size:13px;line-height:1;padding:0 0 0 4px" title="Eliminar">×</button>' : '')
       + '</span>';
   }).join('');
   // Proveedores
@@ -1734,13 +1734,14 @@ function renderCatsList(){
           return '<tr><td><strong>'+p.nombre+'</strong></td>'
             +'<td style="font-size:12px;color:var(--text2)">'+(p.notas||'-')+'</td>'
             +'<td style="font-size:12px;color:var(--text2)">'+(p.contacto||'-')+(p.telefono?' · '+p.telefono:'')+'</td>'
-            +(isAdmin?'<td><button class="btn btn-sm btn-danger" onclick="eliminarProveedor('+p.id+',''+p.nombre.replace(/'/g,"\'")+'')" title="Eliminar">X</button></td>':'')
+            +(isAdmin?'<td><button class="btn btn-sm btn-danger" onclick="eliminarProveedor('+p.id+',this)" title="Eliminar">X</button></td>':'')
             +'</tr>';
         }).join('')
       + '</tbody></table></div>';
   }
 }
-async function eliminarCategoria(id, nombre){
+async function eliminarCategoria(id, btn){
+  var nombre = btn.parentElement.childNodes[0].textContent.trim();
   if(!confirm('Eliminar categoria "'+nombre+'"?\nLos productos de esta categoria quedarán sin categoria asignada.')) return;
   var r = await sb.from('categorias').delete().eq('id', id);
   if(r.error){ toast('Error: '+r.error.message, false); return; }
@@ -1748,7 +1749,8 @@ async function eliminarCategoria(id, nombre){
   toast('Categoria "'+nombre+'" eliminada');
 }
 
-async function eliminarProveedor(id, nombre){
+async function eliminarProveedor(id, btn){
+  var nombre = btn.closest('tr').querySelector('strong').textContent.trim();
   if(!confirm('Eliminar proveedor "'+nombre+'"?\nLos productos de este proveedor quedarán sin proveedor asignado.')) return;
   var r = await sb.from('proveedores').delete().eq('id', id);
   if(r.error){ toast('Error: '+r.error.message, false); return; }
