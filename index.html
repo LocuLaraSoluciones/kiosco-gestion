@@ -705,9 +705,29 @@ async function loadUsers(){
   var r=await sb.from('usuarios').select('*').eq('activo',true);
   var ul=document.getElementById('user-list');
   if(!r.data||!r.data.length){ ul.innerHTML='<div style="color:var(--danger);font-size:13px">No se pudo conectar.</div>'; return; }
+
+  // Acceso directo por URL ?puesto=1 o ?puesto=2
+  var params = new URLSearchParams(window.location.search);
+  var puesto = params.get('puesto');
+  if(puesto){
+    var nombreBuscar = 'puesto'+puesto;
+    var u = r.data.find(function(x){ return x.nombre.toLowerCase().replace(/\s/g,'') === nombreBuscar.toLowerCase(); });
+    if(u){ loginDirecto(u); return; }
+  }
+
   ul.innerHTML=r.data.map(function(u){
     return '<button class="user-btn" onclick="selectUser('+u.id+',\''+u.nombre+'\',\''+u.rol+'\',\''+u.pin+'\')"><div class="uname">'+u.nombre+'</div><div class="urole">'+(u.rol==='admin'?'🔑 Administrador':'👤 Operador')+'</div></button>';
   }).join('');
+}
+
+function loginDirecto(u){
+  state.user={id:u.id,nombre:u.nombre,rol:u.rol,pin:u.pin};
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  document.getElementById('role-badge').textContent=u.rol==='admin'?'Admin':'Operador';
+  document.getElementById('role-badge').className='badge badge-'+(u.rol==='admin'?'admin':'op');
+  document.querySelectorAll('.admin-only').forEach(function(el){ el.style.display=u.rol==='admin'?'':'none'; });
+  initApp();
 }
 var selUser=null;
 function selectUser(id,nombre,rol,pin){
