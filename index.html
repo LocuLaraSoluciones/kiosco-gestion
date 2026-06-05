@@ -734,8 +734,7 @@ function selectUser(id,nombre,rol,pin){
   // Acceso sin PIN para puestos de trabajo
   var nombreLower = nombre.toLowerCase().replace(/\s/g,'');
   if(nombreLower==='puesto1'||nombreLower==='puesto2'){
-    selUser={id:id,nombre:nombre,rol:rol,pin:pin};
-    loginPin();
+    loginDirecto({id:id,nombre:nombre,rol:rol,pin:pin});
     return;
   }
   selUser={id:id,nombre:nombre,rol:rol,pin:pin};
