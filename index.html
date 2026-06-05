@@ -39,6 +39,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .badge-op{background:#4A7C3F;color:#E8F5E4}
 .btn-logout{padding:6px 12px;border:1px solid #6B4226;border-radius:var(--radius-sm);cursor:pointer;background:transparent;color:#DFC48A;font-size:12px}
 .btn-logout:hover{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
+.bell-btn{position:relative;padding:6px 10px;border:1px solid #6B4226;border-radius:var(--radius-sm);cursor:pointer;background:transparent;color:#DFC48A;font-size:18px;line-height:1}
+.bell-btn:hover{background:#4A2A14}
+.bell-badge{position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;line-height:1}
+.alert-panel{display:none;position:fixed;top:52px;right:12px;width:340px;max-height:480px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(44,26,14,.25);z-index:300;overflow:hidden}
+.alert-panel.open{display:block}
+.alert-panel-header{padding:12px 14px;background:#2C1A0E;color:#FBF5E6;font-weight:600;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+.alert-panel-body{overflow-y:auto;max-height:400px;padding:8px}
+.alert-item{padding:8px 10px;border-radius:var(--radius-sm);margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.alert-item.critico{background:var(--danger-bg);border-left:3px solid var(--danger)}
+.alert-item.atencion{background:var(--warning-bg);border-left:3px solid var(--warning)}
 .nav{display:flex;gap:2px;padding:8px 12px;background:#3D2210;border-bottom:1px solid #2C1A0E;overflow-x:auto}
 .nav-btn{padding:7px 14px;border:1px solid transparent;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;background:transparent;color:#DFC48A;white-space:nowrap;transition:all .15s}
 .nav-btn:hover{background:#4A2A14;color:#FBF5E6}
@@ -181,6 +191,9 @@ tr:hover td{background:#fafaf8}
     <span class="topbar-logo">🏪</span>
     <span class="topbar-title">Gestion LocuLara Soluciones</span>
     <span class="badge badge-admin" id="role-badge">Admin</span>
+    <button class="bell-btn" id="bell-btn" onclick="toggleAlertPanel()" title="Alertas de stock">
+      🔔<span class="bell-badge" id="bell-count" style="display:none">0</span>
+    </button>
     <button class="btn-logout" onclick="logout()">Salir</button>
   </div>
   <div class="nav">
@@ -619,6 +632,17 @@ tr:hover td{background:#fafaf8}
   </div>
 </div>
 
+<!-- PANEL DE ALERTAS -->
+<div class="alert-panel" id="alert-panel">
+  <div class="alert-panel-header">
+    <span>🔔 Alertas de stock</span>
+    <button onclick="toggleAlertPanel()" style="background:none;border:none;color:#DFC48A;cursor:pointer;font-size:16px">✕</button>
+  </div>
+  <div class="alert-panel-body" id="alert-panel-body">
+    <div style="color:var(--text3);text-align:center;padding:16px;font-size:13px">Sin alertas</div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -694,6 +718,8 @@ async function initApp(){
   document.getElementById('rep-desde').value=h.slice(0,8)+'01';
   document.getElementById('rep-hasta').value=h;
   focusLinea();
+  verificarAlertas();
+  setInterval(verificarAlertas, 300000); // cada 5 minutos
 }
 async function loadProductos(){
   var r=await sb.from('productos').select('*,categorias(nombre),proveedores(nombre)').eq('activo',true).order('nombre');
@@ -1111,9 +1137,10 @@ async function renderStock(){
   if(sel) sel.innerHTML='<option value="">Todas las categorias</option>'+state.categorias.map(function(c){ return '<option value="'+c.nombre+'"'+(catF===c.nombre?' selected':'')+'>'+c.nombre+'</option>'; }).join('');
   var prods=state.productos.filter(function(p){ return(!q||p.nombre.toLowerCase().indexOf(q)>-1)&&(!catF||((p.categorias&&p.categorias.nombre||'')===catF)); });
   var alerts=prods.filter(function(p){ return p.stock_minimo>0&&p.stock<=p.stock_minimo; });
-  document.getElementById('stock-alerts').innerHTML=alerts.length
-    ?alerts.map(function(p){ return '<div class="alert alert-warning">Stock bajo: <strong>'+p.nombre+'</strong> ('+p.stock+' / min '+p.stock_minimo+')</div>'; }).join('')
-    :'<div class="alert alert-success">Todo el stock en orden</div>';
+  // Ocultar el div de alertas en stock (ahora van a la campana)
+  var alertDiv = document.getElementById('stock-alerts');
+  if(alertDiv) alertDiv.style.display='none';
+  actualizarCampana(alerts);
   document.getElementById('stock-table').innerHTML=prods.map(function(p){
     var sc=p.stock_minimo===0;
     var pct=sc?100:Math.min(100,Math.round(p.stock/Math.max(p.stock_minimo*3,1)*100));
@@ -1953,6 +1980,81 @@ async function reimprimirVenta(ventaId){
     val: v.descuento_valor,
     pago: v.medio_pago
   });
+}
+
+// ── CAMPANA DE ALERTAS ────────────────────────────────────────────────────────
+var alertasActuales = [];
+
+function actualizarCampana(alerts){
+  alertasActuales = alerts || [];
+  var count = alertasActuales.length;
+  var badge = document.getElementById('bell-count');
+  var btn = document.getElementById('bell-btn');
+  if(!badge) return;
+  if(count > 0){
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.style.display = 'flex';
+    btn.style.color = '#E24B4A';
+  } else {
+    badge.style.display = 'none';
+    btn.style.color = '#DFC48A';
+  }
+  renderAlertPanel();
+}
+
+function renderAlertPanel(){
+  var body = document.getElementById('alert-panel-body');
+  if(!body) return;
+  if(!alertasActuales.length){
+    body.innerHTML = '<div style="color:var(--text3);text-align:center;padding:20px;font-size:13px">✅ Todo el stock en orden</div>';
+    return;
+  }
+  // Separar criticos (stock=0) de atencion (stock<=minimo)
+  var criticos = alertasActuales.filter(function(p){ return p.stock===0; });
+  var atencion = alertasActuales.filter(function(p){ return p.stock>0; });
+  var html = '';
+  if(criticos.length){
+    html += '<div style="font-size:11px;font-weight:600;color:var(--danger);margin:6px 0 4px;text-transform:uppercase">Sin stock ('+criticos.length+')</div>';
+    html += criticos.map(function(p){
+      return '<div class="alert-item critico">'
+        +'<span style="font-weight:500">'+p.nombre+'</span>'
+        +'<span style="font-size:12px;color:var(--danger);font-weight:600;white-space:nowrap">0 / min '+p.stock_minimo+'</span>'
+        +'</div>';
+    }).join('');
+  }
+  if(atencion.length){
+    html += '<div style="font-size:11px;font-weight:600;color:var(--warning);margin:8px 0 4px;text-transform:uppercase">Stock bajo ('+atencion.length+')</div>';
+    html += atencion.map(function(p){
+      return '<div class="alert-item atencion">'
+        +'<span style="font-weight:500">'+p.nombre+'</span>'
+        +'<span style="font-size:12px;color:var(--warning);font-weight:600;white-space:nowrap">'+p.stock+' / min '+p.stock_minimo+'</span>'
+        +'</div>';
+    }).join('');
+  }
+  body.innerHTML = html;
+}
+
+function toggleAlertPanel(){
+  var panel = document.getElementById('alert-panel');
+  panel.classList.toggle('open');
+}
+
+// Cerrar panel al hacer clic afuera
+document.addEventListener('click', function(e){
+  var panel = document.getElementById('alert-panel');
+  var bell = document.getElementById('bell-btn');
+  if(panel && bell && !panel.contains(e.target) && !bell.contains(e.target)){
+    panel.classList.remove('open');
+  }
+});
+
+// Verificar alertas al iniciar y cada 5 minutos
+async function verificarAlertas(){
+  var r = await sb.from('productos').select('id,nombre,stock,stock_minimo').eq('activo',true).gt('stock_minimo',0);
+  if(r.data){
+    var alerts = r.data.filter(function(p){ return p.stock <= p.stock_minimo; });
+    actualizarCampana(alerts);
+  }
 }
 
 loadUsers();
