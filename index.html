@@ -471,6 +471,33 @@ tr:hover td{background:#fafaf8}
 
     <!-- CONFIG -->
     <div class="section" id="sec-config">
+      <div class="row-between" style="margin-bottom:14px">
+        <span style="font-size:15px;font-weight:600">⚙️ Configuracion</span>
+        <button class="btn btn-sm" style="border-color:var(--info);color:var(--info);background:var(--info-bg)" onclick="toggleHistorialAlertas()">📋 Historial de notificaciones</button>
+      </div>
+      <!-- HISTORIAL PANEL -->
+      <div id="historial-panel" style="display:none;margin-bottom:16px">
+        <div class="card">
+          <div class="row-between" style="margin-bottom:12px">
+            <span style="font-weight:600;font-size:14px">📋 Historial de alertas</span>
+            <div class="row" style="gap:6px">
+              <select id="hist-filtro" onchange="loadHistorialAlertas()" style="width:auto;font-size:12px">
+                <option value="">Todas</option>
+                <option value="sin_stock">Sin stock</option>
+                <option value="stock_bajo">Stock bajo</option>
+              </select>
+              <button class="btn btn-sm" onclick="loadHistorialAlertas()">🔄</button>
+            </div>
+          </div>
+          <div class="card-flush" style="max-height:340px;overflow-y:auto">
+            <table><thead><tr>
+              <th>Producto</th><th>Tipo</th><th>Stock</th><th>Generada</th><th>Vista por</th><th>Resuelta</th>
+            </tr></thead>
+            <tbody id="historial-table"><tr><td colspan="6" class="loading"><span class="spinner"></span>Cargando...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
       <div class="grid2" style="align-items:start">
         <div class="card">
           <p style="font-weight:600;font-size:15px;margin-bottom:14px">👤 Usuarios</p>
@@ -514,6 +541,7 @@ tr:hover td{background:#fafaf8}
         </div>
       </div>
     </div>
+      </div>
 
   </div>
 </div>
@@ -2075,9 +2103,16 @@ function toggleAlertPanel(){
   panel.classList.toggle('open');
   // Al abrir el panel, marcar todas las actuales como vistas
   if(!estaAbierto){
+    // Registrar quien vio las alertas nuevas por primera vez
+    var usuario = state.user ? state.user.nombre : 'Desconocido';
+    var ahoraStr = new Date().toISOString();
+    alertasNuevas.forEach(async function(id){
+      await sb.from('historial_alertas')
+        .update({vista_por: usuario, vista_at: ahoraStr})
+        .eq('producto_id', id).is('resuelta_at', null).is('vista_por', null);
+    });
     alertasActuales.forEach(function(p){ alertasVistas.add(p.id); });
     alertasNuevas.clear();
-    // Sacar animacion del badge
     var badge = document.getElementById('bell-count');
     if(badge) badge.style.animation = 'none';
     renderAlertPanel();
@@ -2096,10 +2131,84 @@ document.addEventListener('click', function(e){
 // Verificar alertas al iniciar y cada 5 minutos
 async function verificarAlertas(){
   var r = await sb.from('productos').select('id,nombre,stock,stock_minimo').eq('activo',true).gt('stock_minimo',0);
-  if(r.data){
-    var alerts = r.data.filter(function(p){ return p.stock <= p.stock_minimo; });
-    actualizarCampana(alerts);
+  if(!r.data) return;
+  var alerts = r.data.filter(function(p){ return p.stock <= p.stock_minimo; });
+
+  // Registrar alertas nuevas en historial
+  var anteriorIds = new Set(alertasActuales.map(function(p){ return p.id; }));
+  for(var i=0;i<alerts.length;i++){
+    var p = alerts[i];
+    if(!anteriorIds.has(p.id)){
+      // Es nueva — verificar si ya existe en historial sin resolver
+      var check = await sb.from('historial_alertas')
+        .select('id').eq('producto_id',p.id).is('resuelta_at',null).limit(1);
+      if(!check.data||check.data.length===0){
+        await sb.from('historial_alertas').insert({
+          producto_id: p.id,
+          nombre_snapshot: p.nombre,
+          tipo: p.stock===0 ? 'sin_stock' : 'stock_bajo',
+          stock_al_momento: p.stock,
+          stock_minimo: p.stock_minimo
+        });
+      }
+    }
   }
+
+  // Marcar como resueltas las que ya no tienen alerta
+  var alertIds = new Set(alerts.map(function(p){ return p.id; }));
+  for(var j=0;j<alertasActuales.length;j++){
+    var pa = alertasActuales[j];
+    if(!alertIds.has(pa.id)){
+      await sb.from('historial_alertas')
+        .update({resuelta_at: new Date().toISOString()})
+        .eq('producto_id', pa.id).is('resuelta_at', null);
+    }
+  }
+
+  actualizarCampana(alerts);
+}
+
+// ── HISTORIAL ALERTAS ──────────────────────────────────────────────────────────
+function toggleHistorialAlertas(){
+  var panel = document.getElementById('historial-panel');
+  var visible = panel.style.display !== 'none';
+  panel.style.display = visible ? 'none' : 'block';
+  if(!visible) loadHistorialAlertas();
+}
+
+async function loadHistorialAlertas(){
+  var filtro = (document.getElementById('hist-filtro')||{value:''}).value;
+  var q = sb.from('historial_alertas')
+    .select('*,productos(nombre)')
+    .order('creada_at',{ascending:false})
+    .limit(100);
+  if(filtro) q = q.eq('tipo', filtro);
+  var r = await q;
+  var tb = document.getElementById('historial-table');
+  if(!r.data||!r.data.length){
+    tb.innerHTML = '<tr><td colspan="6" style="color:var(--text3);padding:12px;text-align:center">Sin registros</td></tr>';
+    return;
+  }
+  tb.innerHTML = r.data.map(function(h){
+    var tipo = h.tipo==='sin_stock'
+      ? '<span class="tag tag-red">Sin stock</span>'
+      : '<span class="tag tag-amber">Stock bajo</span>';
+    var creada = new Date(h.creada_at).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    var resuelta = h.resuelta_at
+      ? '<span style="color:var(--success);font-size:11px">'+new Date(h.resuelta_at).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</span>'
+      : '<span style="color:var(--text3);font-size:11px">Pendiente</span>';
+    var vista = h.vista_por
+      ? '<span style="font-size:11px">'+h.vista_por+'<br><span style="color:var(--text3)">'+new Date(h.vista_at).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</span></span>'
+      : '<span style="color:var(--text3);font-size:11px">No vista</span>';
+    return '<tr>'
+      +'<td style="font-size:12px"><strong>'+h.nombre_snapshot+'</strong></td>'
+      +'<td>'+tipo+'</td>'
+      +'<td style="font-size:12px">'+h.stock_al_momento+' / min '+h.stock_minimo+'</td>'
+      +'<td style="font-size:11px;color:var(--text2)">'+creada+'</td>'
+      +'<td>'+vista+'</td>'
+      +'<td>'+resuelta+'</td>'
+      +'</tr>';
+  }).join('');
 }
 
 loadUsers();
