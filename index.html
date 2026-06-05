@@ -906,12 +906,12 @@ function abrirDetalleModal(tipo,prod){
   if(tipo==='cantidad'){
     tit.textContent=prod.nombre;
     body.innerHTML='<div class="form-group"><label class="label">Cantidad</label>'
-      +'<input type="number" id="det-qty" value="1" min="1" style="font-size:16px;text-align:center">'
+      +'<input type="number" id="det-qty" value="1" min="1" style="font-size:16px;text-align:right" onkeydown="if(event.key===\'Enter\')confirmDetalle()">'
       +'<div style="font-size:12px;color:var(--text2);margin-top:4px">Precio unitario: '+fmt(prod.precio)+'</div></div>';
   } else if(tipo==='peso'){
     tit.textContent=prod.nombre+' — por gramo';
     body.innerHTML='<div class="form-group"><label class="label">Gramos</label>'
-      +'<input type="number" id="det-qty" placeholder="0" min="1" style="font-size:16px;text-align:center" oninput="calcPeso()">'
+      +'<input type="number" id="det-qty" placeholder="0" min="1" style="font-size:16px;text-align:right" oninput="calcPeso()" onkeydown="if(event.key===\'Enter\')confirmDetalle()">'
       +'<div style="font-size:14px;margin-top:6px;font-weight:600;color:var(--success)" id="det-peso-total">$0,00</div>'
       +'<div style="font-size:12px;color:var(--text2);margin-top:2px">'+fmt(prod.precio)+' por gramo</div></div>';
   } else {
@@ -919,9 +919,12 @@ function abrirDetalleModal(tipo,prod){
     body.innerHTML='<div class="form-group"><label class="label">Descripcion</label>'
       +'<input type="text" id="det-desc" placeholder="Ej: ANSES, RENAPER, Sellado..."></div>'
       +'<div class="form-group"><label class="label">Valor ($)</label>'
-      +'<input type="number" id="det-val" placeholder="0,00" min="0" step="0.01" style="font-size:16px"></div>';
+      +'<input type="number" id="det-val" placeholder="0,00" min="0" step="0.01" style="font-size:16px;text-align:right" onkeydown="if(event.key===\'Enter\')confirmDetalle()"></div>';
   }
-  setTimeout(function(){ var f=document.querySelector('#detalle-body input'); if(f)f.focus(); },80);
+  setTimeout(function(){
+    var f=document.querySelector('#detalle-body input');
+    if(f){ f.focus(); f.select(); }
+  },80);
 }
 function calcPeso(){ if(!detCtx||!detCtx.prod)return; var g=parseFloat(document.getElementById('det-qty').value)||0; document.getElementById('det-peso-total').textContent=fmt(g*detCtx.prod.precio); }
 function closeDetalleModal(){ document.getElementById('modal-detalle').style.display='none'; detCtx=null; focusLinea(); }
