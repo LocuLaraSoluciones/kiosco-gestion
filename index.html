@@ -49,6 +49,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .alert-item{padding:8px 10px;border-radius:var(--radius-sm);margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .alert-item.critico{background:var(--danger-bg);border-left:3px solid var(--danger)}
 .alert-item.atencion{background:var(--warning-bg);border-left:3px solid var(--warning)}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
 .nav{display:flex;gap:2px;padding:8px 12px;background:#3D2210;border-bottom:1px solid #2C1A0E;overflow-x:auto}
 .nav-btn{padding:7px 14px;border:1px solid transparent;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;background:transparent;color:#DFC48A;white-space:nowrap;transition:all .15s}
 .nav-btn:hover{background:#4A2A14;color:#FBF5E6}
@@ -1984,9 +1985,23 @@ async function reimprimirVenta(ventaId){
 
 // ── CAMPANA DE ALERTAS ────────────────────────────────────────────────────────
 var alertasActuales = [];
+var alertasVistas = new Set(); // IDs que el usuario ya vio al abrir el panel
+var alertasNuevas = new Set(); // IDs que aparecieron desde la ultima apertura
 
 function actualizarCampana(alerts){
+  var anterior = new Set(alertasActuales.map(function(p){ return p.id; }));
   alertasActuales = alerts || [];
+
+  // Detectar las que son nuevas (no estaban en la lista anterior)
+  alertasActuales.forEach(function(p){
+    if(!anterior.has(p.id) && !alertasVistas.has(p.id)){
+      alertasNuevas.add(p.id);
+    }
+  });
+  // Limpiar nuevas que ya no tienen alerta
+  var actualesIds = new Set(alertasActuales.map(function(p){ return p.id; }));
+  alertasNuevas.forEach(function(id){ if(!actualesIds.has(id)) alertasNuevas.delete(id); });
+
   var count = alertasActuales.length;
   var badge = document.getElementById('bell-count');
   var btn = document.getElementById('bell-btn');
@@ -1994,10 +2009,13 @@ function actualizarCampana(alerts){
   if(count > 0){
     badge.textContent = count > 99 ? '99+' : count;
     badge.style.display = 'flex';
+    // Si hay nuevas, el badge parpadea
+    badge.style.animation = alertasNuevas.size > 0 ? 'pulse 1.5s infinite' : 'none';
     btn.style.color = '#E24B4A';
   } else {
     badge.style.display = 'none';
     btn.style.color = '#DFC48A';
+    badge.style.animation = 'none';
   }
   renderAlertPanel();
 }
@@ -2009,10 +2027,27 @@ function renderAlertPanel(){
     body.innerHTML = '<div style="color:var(--text3);text-align:center;padding:20px;font-size:13px">✅ Todo el stock en orden</div>';
     return;
   }
-  // Separar criticos (stock=0) de atencion (stock<=minimo)
-  var criticos = alertasActuales.filter(function(p){ return p.stock===0; });
-  var atencion = alertasActuales.filter(function(p){ return p.stock>0; });
+
+  // Separar: nuevas primero, luego criticos, luego atencion
+  var nuevas  = alertasActuales.filter(function(p){ return alertasNuevas.has(p.id); });
+  var criticos = alertasActuales.filter(function(p){ return p.stock===0 && !alertasNuevas.has(p.id); });
+  var atencion = alertasActuales.filter(function(p){ return p.stock>0  && !alertasNuevas.has(p.id); });
+
   var html = '';
+
+  if(nuevas.length){
+    html += '<div style="font-size:11px;font-weight:600;color:var(--primary);margin:6px 0 4px;text-transform:uppercase;display:flex;align-items:center;gap:4px"><span>🆕 Nuevas ('+nuevas.length+')</span></div>';
+    html += nuevas.map(function(p){
+      var cls = p.stock===0 ? 'critico' : 'atencion';
+      var stk = p.stock===0 ? '0' : p.stock;
+      return '<div class="alert-item '+cls+'" style="border-left-color:var(--primary);background:var(--primary-bg)">'
+        +'<span style="font-weight:600">'+p.nombre+'</span>'
+        +'<span style="font-size:12px;font-weight:600;white-space:nowrap;color:var(--primary-dark)">'+stk+' / min '+p.stock_minimo+'</span>'
+        +'</div>';
+    }).join('');
+    html += '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0">';
+  }
+
   if(criticos.length){
     html += '<div style="font-size:11px;font-weight:600;color:var(--danger);margin:6px 0 4px;text-transform:uppercase">Sin stock ('+criticos.length+')</div>';
     html += criticos.map(function(p){
@@ -2036,7 +2071,17 @@ function renderAlertPanel(){
 
 function toggleAlertPanel(){
   var panel = document.getElementById('alert-panel');
+  var estaAbierto = panel.classList.contains('open');
   panel.classList.toggle('open');
+  // Al abrir el panel, marcar todas las actuales como vistas
+  if(!estaAbierto){
+    alertasActuales.forEach(function(p){ alertasVistas.add(p.id); });
+    alertasNuevas.clear();
+    // Sacar animacion del badge
+    var badge = document.getElementById('bell-count');
+    if(badge) badge.style.animation = 'none';
+    renderAlertPanel();
+  }
 }
 
 // Cerrar panel al hacer clic afuera
