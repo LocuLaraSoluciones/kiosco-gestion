@@ -318,7 +318,7 @@ tr:hover td{background:#fafaf8}
             <span class="barcode-fb" id="barcode-ingreso-fb">Listo</span>
           </div>
           <div class="form-group">
-            <input type="text" id="ing-buscar" placeholder="Buscar articulo por nombre o codigo..." oninput="liveSearchIngreso(this.value)" autocomplete="off">
+            <input type="text" id="ing-buscar" placeholder="Buscar articulo por nombre o codigo..." oninput="liveSearchIngreso(this.value)" onkeydown="handleIngBuscarKey(event)" autocomplete="off">
             <div id="ing-sugs" style="display:none;border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:2px;max-height:160px;overflow-y:auto;background:var(--surface)"></div>
           </div>
           <div style="margin-bottom:10px">
@@ -346,7 +346,7 @@ tr:hover td{background:#fafaf8}
             <div style="font-size:12px;color:var(--text2);margin-bottom:8px" id="ing-item-info"></div>
             <div class="row" style="gap:8px">
               <div style="flex:1"><label class="label">Stock actual</label><input type="text" id="ing-item-stock-actual" readonly style="background:var(--bg);color:var(--text2)"></div>
-              <div style="flex:1"><label class="label">Ingresan</label><input type="number" id="ing-item-qty" placeholder="0" min="1" style="font-size:15px"></div>
+              <div style="flex:1"><label class="label">Ingresan</label><input type="number" id="ing-item-qty" placeholder="0" min="1" style="font-size:15px;text-align:right" onkeydown="if(event.key==='Enter'){event.preventDefault();agregarItemIngreso();}"></div>
               <div style="flex:1"><label class="label">Costo u. ($)</label><input type="number" id="ing-item-costo" placeholder="0,00" min="0" step="0.01"></div>
             </div>
             <button class="btn btn-primary btn-full" style="margin-top:8px" onclick="agregarItemIngreso()">+ Agregar a la lista</button>
@@ -1262,7 +1262,10 @@ function onProveedorChange(){
     info.textContent=txt.join('  -  '); info.style.display='block';
   } else info.style.display='none';
 }
+var ingSugIdx = -1;
+
 function liveSearchIngreso(val){
+  ingSugIdx = -1;
   var sg=document.getElementById('ing-sugs');
   if(!val||val.length<2){ sg.style.display='none'; return; }
   var q=val.toLowerCase();
@@ -1272,14 +1275,45 @@ function liveSearchIngreso(val){
   sg.innerHTML=res.map(function(p){
     var cat=p.categorias?p.categorias.nombre:'';
     var stk=p.stock_minimo===0?'sin control':p.stock+' u.';
-    return '<div class="sug-item" onclick="selItemIngreso('+p.id+')">'
+    return '<div class="sug-item" data-id="'+p.id+'" onclick="selItemIngreso('+p.id+')">'
       +'<strong>'+p.nombre+'</strong> <span class="tag tag-purple" style="font-size:10px">'+cat+'</span>'
       +' <span style="font-size:11px;color:var(--text2)">Stock: '+stk+'</span>'
       +(p.notas?'<br><span style="font-size:11px;color:var(--text3)">Universo: '+p.notas+'</span>':'')
       +'</div>';
   }).join('');
 }
+
+function setIngSugIdx(idx){
+  var items=document.querySelectorAll('#ing-sugs .sug-item');
+  if(!items.length) return;
+  ingSugIdx=Math.max(-1,Math.min(idx,items.length-1));
+  items.forEach(function(el,i){
+    el.style.background=i===ingSugIdx?'var(--primary-bg)':'';
+    el.style.fontWeight=i===ingSugIdx?'600':'';
+  });
+  if(ingSugIdx>=0) items[ingSugIdx].scrollIntoView({block:'nearest'});
+}
+
+function handleIngBuscarKey(e){
+  var sg=document.getElementById('ing-sugs');
+  var visible=sg.style.display!=='none';
+  if(e.key==='ArrowDown'){ e.preventDefault(); if(visible) setIngSugIdx(ingSugIdx+1); return; }
+  if(e.key==='ArrowUp'){ e.preventDefault(); if(visible) setIngSugIdx(ingSugIdx-1); return; }
+  if(e.key==='Escape'){ sg.style.display='none'; ingSugIdx=-1; return; }
+  if(e.key==='Enter'){
+    e.preventDefault();
+    if(visible&&ingSugIdx>=0){
+      var items=document.querySelectorAll('#ing-sugs .sug-item');
+      if(items[ingSugIdx]){ items[ingSugIdx].click(); return; }
+    }
+    // Si hay una sola sugerencia, seleccionarla directamente
+    var items=document.querySelectorAll('#ing-sugs .sug-item');
+    if(items.length===1){ items[0].click(); return; }
+  }
+}
+
 function selItemIngreso(id){
+  ingSugIdx=-1;
   document.getElementById('ing-sugs').style.display='none';
   document.getElementById('ing-buscar').value='';
   var p=state.productos.find(function(x){ return x.id===id; }); if(!p) return;
@@ -1291,8 +1325,9 @@ function selItemIngreso(id){
   document.getElementById('ing-item-qty').value='';
   document.getElementById('ing-item-costo').value='';
   document.getElementById('ing-item-form').style.display='block';
-  document.getElementById('ing-item-qty').focus();
+  setTimeout(function(){ document.getElementById('ing-item-qty').focus(); document.getElementById('ing-item-qty').select(); },50);
 }
+
 function handleBarcodeIngreso(e){
   if(e.key!=='Enter') return;
   var code=document.getElementById('barcode-ingreso').value.trim();
@@ -1302,6 +1337,7 @@ function handleBarcodeIngreso(e){
   if(p){ fb.textContent='OK: '+p.nombre; fb.className='barcode-fb ok'; document.getElementById('barcode-ingreso').value=''; selItemIngreso(p.id); setTimeout(function(){ fb.textContent='Listo'; fb.className='barcode-fb'; },2000); }
   else{ fb.textContent='No encontrado'; fb.className='barcode-fb err'; setTimeout(function(){ fb.textContent='Listo'; fb.className='barcode-fb'; },2500); document.getElementById('barcode-ingreso').select(); }
 }
+
 function agregarItemIngreso(){
   if(!ingresoItemActual) return;
   var qty=parseFloat(document.getElementById('ing-item-qty').value)||0;
@@ -1313,7 +1349,9 @@ function agregarItemIngreso(){
   document.getElementById('ing-item-form').style.display='none';
   ingresoItemActual=null;
   renderIngresoLista();
-  toast(qty+' u. agregadas a la lista');
+  toast(qty+' u. agregadas');
+  // Foco de vuelta al campo de escaneo
+  setTimeout(function(){ document.getElementById('barcode-ingreso').focus(); document.getElementById('barcode-ingreso').value=''; },80);
 }
 function renderIngresoLista(){
   var el=document.getElementById('ing-lista');
