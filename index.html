@@ -564,22 +564,41 @@ tr:hover td{background:#fafaf8}
 
 <!-- MODAL PROVINCIA NET -->
 <div id="modal-provincia-net" class="modal-overlay">
-  <div class="modal-box modal-sm">
+  <div class="modal-box" style="max-width:420px;margin:5vh auto 0">
     <div class="row-between" style="margin-bottom:14px">
       <span style="font-weight:600;font-size:15px">🏦 Provincia Net</span>
       <button class="btn btn-sm" onclick="closeProvinciaNet()">✕</button>
     </div>
     <div class="form-group">
-      <label class="label">Monto del servicio ($)</label>
-      <input type="number" id="pn-monto" placeholder="0,00" min="0" step="0.01" style="font-size:18px;text-align:center" oninput="calcProvinciaNet()">
+      <label class="label">Monto de la operacion ($)</label>
+      <input type="number" id="pn-monto" placeholder="0,00" min="0" step="0.01" style="font-size:18px;text-align:right" oninput="calcProvinciaNet()">
     </div>
-    <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--info-bg);border-radius:var(--radius-sm);margin-bottom:12px;cursor:pointer" onclick="togglePNEfectivo()">
-      <input type="checkbox" id="pn-efectivo" style="width:auto;cursor:pointer">
-      <label for="pn-efectivo" style="margin:0;font-size:13px;cursor:pointer;flex:1">Pago en efectivo <span style="color:var(--info);font-weight:600">(+10% recargo)</span></label>
+    <div class="form-group">
+      <label class="label">Metodo de pago del cliente <span style="color:var(--danger)">*</span></label>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg);border-radius:var(--radius-sm);cursor:pointer;border:2px solid transparent" id="pn-opt-efectivo" onclick="selectPNMetodo('efectivo')">
+          <input type="radio" name="pn-metodo" id="pn-radio-efectivo" value="efectivo" style="width:auto;cursor:pointer">
+          <div style="flex:1">
+            <label for="pn-radio-efectivo" style="margin:0;font-size:13px;cursor:pointer;font-weight:500">Efectivo</label>
+            <div style="font-size:11px;color:var(--text2)">El cliente paga en efectivo — se opera desde cuenta del local</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg);border-radius:var(--radius-sm);cursor:pointer;border:2px solid transparent" id="pn-opt-electronico" onclick="selectPNMetodo('electronico')">
+          <input type="radio" name="pn-metodo" id="pn-radio-electronico" value="electronico" style="width:auto;cursor:pointer">
+          <div style="flex:1">
+            <label for="pn-radio-electronico" style="margin:0;font-size:13px;cursor:pointer;font-weight:500">Electronico</label>
+            <div style="font-size:11px;color:var(--text2)">El cliente transfiere a nuestra cuenta — sin recargo</div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="row-between" style="font-size:16px;font-weight:600;margin-bottom:14px;padding:10px;background:var(--bg);border-radius:var(--radius-sm)">
-      <span>Total a cobrar</span>
-      <span id="pn-total" style="color:var(--success)">$0,00</span>
+    <div id="pn-resumen" style="display:none;background:var(--bg);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;font-size:13px">
+      <div class="row-between" style="margin-bottom:4px"><span>Monto operacion</span><span id="pn-r-monto">$0,00</span></div>
+      <div class="row-between" style="margin-bottom:4px" id="pn-r-recargo-row"><span id="pn-r-recargo-label">Recargo</span><span id="pn-r-recargo" style="color:var(--success)">$0,00</span></div>
+      <div class="row-between" style="margin-bottom:4px" id="pn-r-mp-row"><span style="color:var(--danger)">Salida MP (costo)</span><span id="pn-r-mp" style="color:var(--danger)">-$0,00</span></div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:8px 0">
+      <div class="row-between" style="font-weight:600;font-size:15px"><span>Total a cobrar al cliente</span><span id="pn-total" style="color:var(--success)">$0,00</span></div>
+      <div class="row-between" style="margin-top:4px;font-size:12px;color:var(--text2)"><span>Ganancia del local (excl. fotocopia)</span><span id="pn-ganancia" style="color:var(--primary);font-weight:600">$0,00</span></div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1" onclick="confirmarProvinciaNet()">✅ Agregar al ticket</button>
@@ -998,9 +1017,16 @@ function abrirDetalleModal(tipo,prod){
   } else {
     tit.textContent='Agregar tramite';
     body.innerHTML='<div class="form-group"><label class="label">Descripcion</label>'
-      +'<input type="text" id="det-desc" placeholder="Ej: ANSES, RENAPER, Sellado..."></div>'
-      +'<div class="form-group"><label class="label">Valor ($)</label>'
-      +'<input type="number" id="det-val" placeholder="0,00" min="0" step="0.01" style="font-size:16px;text-align:right" onkeydown="if(event.key===\'Enter\')confirmDetalle()"></div>';
+      +'<input type="text" id="det-desc" placeholder="Ej: ANSES, RENAPER..."></div>'
+      +'<div class="form-group"><label class="label">Valor cobrado al cliente ($)</label>'
+      +'<input type="number" id="det-val" placeholder="0,00" min="0" step="0.01" style="font-size:16px;text-align:right" oninput="calcTramite()"></div>'
+      +'<div id="sellados-lista" style="margin-bottom:8px"></div>'
+      +'<button class="btn btn-sm" style="width:100%;border-style:dashed;margin-bottom:10px" onclick="agregarSellado()">+ Agregar sellado</button>'
+      +'<div id="tramite-resumen" style="display:none;background:var(--bg);border-radius:var(--radius-sm);padding:10px;font-size:13px;margin-bottom:4px">'
+      +'<div class="row-between" style="margin-bottom:3px"><span>Cobrado al cliente</span><span id="tr-cobrado">$0,00</span></div>'
+      +'<div class="row-between" style="margin-bottom:3px" id="tr-sell-row"><span>Sellado/s</span><span id="tr-sellados" style="color:var(--danger)">-$0,00</span></div>'
+      +'<div class="row-between" style="font-weight:600"><span>Ganancia del local</span><span id="tr-ganancia" style="color:var(--success)">$0,00</span></div>'
+      +'</div>';
   }
   setTimeout(function(){
     var f=document.querySelector('#detalle-body input');
@@ -1027,7 +1053,12 @@ function confirmDetalle(){
     var val=parseFloat(document.getElementById('det-val').value)||0;
     if(!desc){ toast('Ingresa una descripcion',false); return; }
     if(!val||val<=0){ toast('Ingresa un valor valido',false); return; }
-    state.cart.push({id:'t'+Date.now(),name:'Tramite: '+desc,price:val,qty:1,total:val,peso:false,tramite:true});
+    var totalSellados = _tramiteSellados.reduce(function(a,b){ return a+b; }, 0);
+    var ganancia = val - totalSellados;
+    var nameLabel = 'Tramite: '+desc+(totalSellados>0?' (sellado '+fmt(totalSellados)+')':'');
+    // Al ticket va la ganancia real, pero el snapshot para el recibo muestra el total cobrado
+    state.cart.push({id:'t'+Date.now(),name:nameLabel,price:ganancia,qty:1,total:ganancia,
+      peso:false,tramite:true,totalCobrado:val,totalSellados:totalSellados});
   }
   renderCart(); closeDetalleModal();
 }
@@ -1120,7 +1151,7 @@ function renderCart(){
   var el=document.getElementById('cart-items');
   if(!state.cart.length){ el.innerHTML='<p style="color:var(--text3);font-size:13px;padding:10px 0;text-align:center">Sin productos</p>'; recalcTotal(); return; }
   el.innerHTML=state.cart.map(function(item,i){
-    var sub=item.peso?(item.grams+'g x '+fmt(item.price)):item.esControl?item.name:fmt(item.price)+' c/u';
+    var sub=item.esProvinciaNet?('Operacion: '+fmt(item.montoOperacion)+(item.recargo>0?' | Recargo: '+fmt(item.recargo):'')):item.peso?(item.grams+'g x '+fmt(item.price)):item.esControl?item.name:fmt(item.price)+' c/u';
     return '<div class="cart-item">'
       +'<div style="flex:1;font-size:13px"><div style="font-weight:500">'+item.name+'</div>'
       +'<div style="font-size:11px;color:var(--text2)">'+sub+'</div></div>'
@@ -1359,24 +1390,14 @@ function renderIngresoLista(){
   if(!ingresoItems.length){ el.innerHTML='<div style="color:var(--text3);font-size:13px;padding:8px 0;text-align:center">Sin items</div>'; btn.style.display='none'; return; }
   el.innerHTML='<div style="font-weight:600;font-size:12px;color:var(--text2);margin-bottom:6px">Items a ingresar ('+ingresoItems.length+'):</div>'
     +ingresoItems.map(function(item,i){
-      return '<div class="ing-item-row">'
-        +'<span style="flex:1;font-weight:500;font-size:12px">'+item.nombre+'</span>'
-        +'<button class="qty-btn" onclick="chgIngQty('+i+',-1)" style="font-size:15px;flex-shrink:0">−</button>'
-        +'<span style="font-weight:600;color:var(--success);min-width:36px;text-align:center">'+item.qty+'</span>'
-        +'<button class="qty-btn" onclick="chgIngQty('+i+',1)" style="font-size:15px;flex-shrink:0">+</button>'
-        +(item.costo>0?'<span style="color:var(--text2);font-size:11px;min-width:72px;text-align:right">'+fmt(item.costo)+' c/u</span>':'')
-        +'<button class="qty-btn" onclick="quitarItemIngreso('+i+')" title="Quitar" style="color:var(--danger)">×</button>'
+      return '<div class="ing-item-row"><span style="flex:1;font-weight:500">'+item.nombre+'</span>'
+        +'<span style="color:var(--success);font-weight:600;min-width:50px">+'+item.qty+'</span>'
+        +(item.costo>0?'<span style="color:var(--text2);font-size:12px;min-width:80px">'+fmt(item.costo)+' c/u</span>':'')
+        +'<button class="qty-btn" onclick="quitarItemIngreso('+i+')" title="Quitar">x</button>'
         +'</div>';
     }).join('');
   btn.style.display='block';
 }
-
-function chgIngQty(i, d){
-  ingresoItems[i].qty += d;
-  if(ingresoItems[i].qty <= 0) ingresoItems.splice(i, 1);
-  renderIngresoLista();
-}
-
 function quitarItemIngreso(i){ ingresoItems.splice(i,1); renderIngresoLista(); }
 async function confirmarIngreso(){
   var provId=parseInt(document.getElementById('ing-prov').value);
@@ -1973,8 +1994,11 @@ async function reimprimirVentaDesdeTickets(ventaId){
 function abrirProvinciaNet(){
   document.getElementById('modal-provincia-net').style.display = 'block';
   document.getElementById('pn-monto').value = '';
-  document.getElementById('pn-efectivo').checked = false;
-  document.getElementById('pn-total').textContent = '$0,00';
+  document.getElementById('pn-radio-efectivo').checked = false;
+  document.getElementById('pn-radio-electronico').checked = false;
+  document.getElementById('pn-opt-efectivo').style.borderColor = 'transparent';
+  document.getElementById('pn-opt-electronico').style.borderColor = 'transparent';
+  document.getElementById('pn-resumen').style.display = 'none';
   setTimeout(function(){ document.getElementById('pn-monto').focus(); }, 80);
 }
 
@@ -1983,37 +2007,144 @@ function closeProvinciaNet(){
   focusLinea();
 }
 
-function togglePNEfectivo(){
-  var cb = document.getElementById('pn-efectivo');
-  cb.checked = !cb.checked;
+function selectPNMetodo(metodo){
+  document.getElementById('pn-radio-efectivo').checked = metodo === 'efectivo';
+  document.getElementById('pn-radio-electronico').checked = metodo === 'electronico';
+  document.getElementById('pn-opt-efectivo').style.borderColor = metodo==='efectivo' ? 'var(--primary)' : 'transparent';
+  document.getElementById('pn-opt-electronico').style.borderColor = metodo==='electronico' ? 'var(--primary)' : 'transparent';
   calcProvinciaNet();
 }
 
 function calcProvinciaNet(){
   var monto = parseFloat(document.getElementById('pn-monto').value) || 0;
-  var efectivo = document.getElementById('pn-efectivo').checked;
-  var total = efectivo ? Math.round(monto * 1.10 * 100) / 100 : monto;
-  document.getElementById('pn-total').textContent = fmt(total);
+  var esEfectivo = document.getElementById('pn-radio-efectivo').checked;
+  var esElectronico = document.getElementById('pn-radio-electronico').checked;
+  if(!monto || (!esEfectivo && !esElectronico)){ document.getElementById('pn-resumen').style.display='none'; return; }
+
+  var recargo = 0;
+  var labelRecargo = '';
+  if(esEfectivo){
+    if(monto <= 20000){
+      recargo = Math.round(monto * 0.10);
+      labelRecargo = 'Recargo 10%';
+    } else {
+      recargo = Math.min(Math.round(monto * 0.05), 10000);
+      labelRecargo = 'Recargo 5% (tope $10.000)';
+    }
+  }
+
+  var totalCliente = monto + recargo;
+  var ganancia = recargo; // en efectivo la ganancia es el recargo; en electronico es 0 (solo fotocopia aparte)
+
+  document.getElementById('pn-resumen').style.display = 'block';
+  document.getElementById('pn-r-monto').textContent = fmt(monto);
+  document.getElementById('pn-r-recargo-row').style.display = esEfectivo ? '' : 'none';
+  document.getElementById('pn-r-recargo-label').textContent = labelRecargo;
+  document.getElementById('pn-r-recargo').textContent = fmt(recargo);
+  document.getElementById('pn-r-mp-row').style.display = esEfectivo ? '' : 'none';
+  document.getElementById('pn-r-mp').textContent = '-'+fmt(monto);
+  document.getElementById('pn-total').textContent = fmt(totalCliente);
+  document.getElementById('pn-ganancia').textContent = esEfectivo ? fmt(ganancia) : 'Ver fotocopia';
 }
 
 function confirmarProvinciaNet(){
   var monto = parseFloat(document.getElementById('pn-monto').value) || 0;
   if(!monto || monto <= 0){ toast('Ingresa el monto', false); return; }
-  var efectivo = document.getElementById('pn-efectivo').checked;
-  var total = efectivo ? Math.round(monto * 1.10 * 100) / 100 : monto;
-  var label = 'Provincia Net' + (efectivo ? ' (efectivo +10%)' : '');
+  var esEfectivo = document.getElementById('pn-radio-efectivo').checked;
+  var esElectronico = document.getElementById('pn-radio-electronico').checked;
+  if(!esEfectivo && !esElectronico){ toast('Selecciona el metodo de pago', false); return; }
+
+  var recargo = 0;
+  if(esEfectivo){
+    recargo = monto <= 20000 ? Math.round(monto*0.10) : Math.min(Math.round(monto*0.05),10000);
+  }
+  var totalCliente = monto + recargo;
+  var metodoLabel = esEfectivo ? 'Efectivo' : 'Electronico';
+  var nameLabel = 'Provincia Net (' + metodoLabel + ')' + (recargo>0 ? ' +'+fmt(recargo) : '');
+
+  // Para reportes internos: efectivo registra monto negativo (costo) + recargo (ganancia)
+  // Electronico: no impacta reportes (ganancia = 0, solo fotocopia aparte)
+  var gananciaInterna = esEfectivo ? recargo : 0;
+
   state.cart.push({
     id: 'pn_' + Date.now(),
-    name: label,
-    price: total, qty: 1, total: total,
-    peso: false, tramite: true
+    name: nameLabel,
+    price: gananciaInterna,
+    qty: 1,
+    total: gananciaInterna,
+    totalCobrado: totalCliente,
+    peso: false,
+    tramite: true,
+    esProvinciaNet: true,
+    montoOperacion: monto,
+    recargo: recargo,
+    metodo: metodoLabel
   });
-  // Preseleccionar efectivo como medio de pago si marcó esa opcion
-  if(efectivo) document.getElementById('payment-method').value = 'Efectivo';
+
+  if(esEfectivo) document.getElementById('payment-method').value = 'Efectivo';
+  else document.getElementById('payment-method').value = 'Transferencia / Mercado Pago';
+
   renderCart();
   closeProvinciaNet();
   toast('Provincia Net agregado al ticket');
 }
+
+// ── SELLADOS EN TRAMITES ──────────────────────────────────────────────────────
+var _tramiteSellados = [];
+
+function agregarSellado(){
+  _tramiteSellados.push(0);
+  renderSelladosLista();
+}
+
+function renderSelladosLista(){
+  var el = document.getElementById('sellados-lista');
+  if(!el) return;
+  if(!_tramiteSellados.length){ el.innerHTML=''; calcTramite(); return; }
+  el.innerHTML = _tramiteSellados.map(function(val,i){
+    return '<div class="row" style="gap:6px;margin-bottom:6px">'
+      +'<input type="number" placeholder="Importe sellado" min="0" step="0.01" value="'+(val||'')+'"'
+      +' style="flex:1;text-align:right" oninput="updateSellado('+i+',this.value)">'
+      +'<button class="btn btn-sm btn-danger" onclick="quitarSellado('+i+')">×</button>'
+      +'</div>';
+  }).join('');
+  calcTramite();
+}
+
+function updateSellado(i, val){
+  _tramiteSellados[i] = parseFloat(val)||0;
+  calcTramite();
+}
+
+function quitarSellado(i){
+  _tramiteSellados.splice(i,1);
+  renderSelladosLista();
+}
+
+function calcTramite(){
+  var val = parseFloat((document.getElementById('det-val')||{value:'0'}).value)||0;
+  var totalSellados = _tramiteSellados.reduce(function(a,b){ return a+b; },0);
+  var ganancia = val - totalSellados;
+  var resumen = document.getElementById('tramite-resumen');
+  if(!resumen) return;
+  if(val > 0){
+    resumen.style.display = 'block';
+    document.getElementById('tr-cobrado').textContent = fmt(val);
+    document.getElementById('tr-sell-row').style.display = totalSellados>0?'':'none';
+    document.getElementById('tr-sellados').textContent = '-'+fmt(totalSellados);
+    document.getElementById('tr-ganancia').textContent = fmt(ganancia);
+    document.getElementById('tr-ganancia').style.color = ganancia>=0?'var(--success)':'var(--danger)';
+  } else {
+    resumen.style.display = 'none';
+  }
+}
+
+// Inicializar sellados al abrir modal tramite
+var _origAbrirDetalle = abrirDetalleModal;
+abrirDetalleModal = function(tipo, prod){
+  if(tipo==='tramite') _tramiteSellados = [];
+  _origAbrirDetalle(tipo, prod);
+};
 
 // ── IMPRESION ──────────────────────────────────────────────────────────────────
 var NEGOCIO = {
