@@ -430,6 +430,13 @@ tr:hover td{background:#fafaf8}
         <div class="card"><p style="font-weight:600;margin-bottom:12px">🏆 Mas vendidos</p><div id="top-prods"></div></div>
         <div class="card"><p style="font-weight:600;margin-bottom:12px">💳 Por medio de pago</p><div id="pago-break"></div></div>
       </div>
+      <div class="card" style="margin-bottom:14px">
+        <p style="font-weight:600;margin-bottom:12px">🏦 Desglose por caja (tramites y Provincia Net)</p>
+        <div id="desglose-caja"></div>
+      </div>
+      <div style="display:none"><!-- placeholder -->
+      </div>
+      </div>
       <div class="card-flush">
         <table><thead><tr><th>Fecha/Hora</th><th>Total</th><th>Pago</th><th>Items</th><th>Ajuste</th><th></th></tr></thead>
         <tbody id="sales-table"></tbody></table>
@@ -1018,13 +1025,25 @@ function abrirDetalleModal(tipo,prod){
     tit.textContent='Agregar tramite';
     body.innerHTML='<div class="form-group"><label class="label">Descripcion</label>'
       +'<input type="text" id="det-desc" placeholder="Ej: ANSES, RENAPER..."></div>'
+      +'<div class="form-group"><label class="label">Metodo de pago del cliente <span style=\"color:var(--danger)\">*</span></label>'
+      +'<div style=\"display:flex;gap:8px\">'
+      +'<div id=\"tr-opt-electronico\" style=\"flex:1;padding:8px 10px;background:var(--bg);border-radius:var(--radius-sm);border:2px solid transparent;cursor:pointer\" onclick=\"selectTrMetodo(\'electronico\')\">'
+      +'<input type=\"radio\" name=\"tr-metodo\" id=\"tr-radio-electronico\" value=\"electronico\" style=\"width:auto\">'
+      +'<label for=\"tr-radio-electronico\" style=\"margin:0 0 0 6px;font-size:12px;cursor:pointer\">Electronico</label>'
+      +'</div>'
+      +'<div id=\"tr-opt-efectivo\" style=\"flex:1;padding:8px 10px;background:var(--bg);border-radius:var(--radius-sm);border:2px solid transparent;cursor:pointer\" onclick=\"selectTrMetodo(\'efectivo\')\">'
+      +'<input type=\"radio\" name=\"tr-metodo\" id=\"tr-radio-efectivo\" value=\"efectivo\" style=\"width:auto\">'
+      +'<label for=\"tr-radio-efectivo\" style=\"margin:0 0 0 6px;font-size:12px;cursor:pointer\">Efectivo</label>'
+      +'</div>'
+      +'</div></div>'
       +'<div class="form-group"><label class="label">Valor cobrado al cliente ($)</label>'
       +'<input type="number" id="det-val" placeholder="0,00" min="0" step="0.01" style="font-size:16px;text-align:right" oninput="calcTramite()"></div>'
       +'<div id="sellados-lista" style="margin-bottom:8px"></div>'
       +'<button class="btn btn-sm" style="width:100%;border-style:dashed;margin-bottom:10px" onclick="agregarSellado()">+ Agregar sellado</button>'
       +'<div id="tramite-resumen" style="display:none;background:var(--bg);border-radius:var(--radius-sm);padding:10px;font-size:13px;margin-bottom:4px">'
       +'<div class="row-between" style="margin-bottom:3px"><span>Cobrado al cliente</span><span id="tr-cobrado">$0,00</span></div>'
-      +'<div class="row-between" style="margin-bottom:3px" id="tr-sell-row"><span>Sellado/s</span><span id="tr-sellados" style="color:var(--danger)">-$0,00</span></div>'
+      +'<div class="row-between" style="margin-bottom:3px" id="tr-sell-row" style="display:none"><span style="color:var(--danger)">Sellado/s (sale de MP)</span><span id="tr-sellados" style="color:var(--danger)">-$0,00</span></div>'
+      +'<div class="row-between" style="margin-bottom:3px" id="tr-efectivo-row" style="display:none"><span style="color:var(--success)">Entrada efectivo</span><span id="tr-efectivo-val" style="color:var(--success)">+$0,00</span></div>'
       +'<div class="row-between" style="font-weight:600"><span>Ganancia del local</span><span id="tr-ganancia" style="color:var(--success)">$0,00</span></div>'
       +'</div>';
   }
@@ -1055,10 +1074,18 @@ function confirmDetalle(){
     if(!val||val<=0){ toast('Ingresa un valor valido',false); return; }
     var totalSellados = _tramiteSellados.reduce(function(a,b){ return a+b; }, 0);
     var ganancia = val - totalSellados;
+    var esEfectivo = document.getElementById('tr-radio-efectivo') && document.getElementById('tr-radio-efectivo').checked;
+    var esElectronico = document.getElementById('tr-radio-electronico') && document.getElementById('tr-radio-electronico').checked;
+    if(!esEfectivo && !esElectronico){ toast('Selecciona el metodo de pago', false); return; }
+    var metodo = esEfectivo ? 'Efectivo' : 'Electronico';
     var nameLabel = 'Tramite: '+desc+(totalSellados>0?' (sellado '+fmt(totalSellados)+')':'');
-    // Al ticket va la ganancia real, pero el snapshot para el recibo muestra el total cobrado
+    // impactoElectronico: electronico=+ganancia / efectivo=-sellados
+    // impactoEfectivo:    electronico=0          / efectivo=+totalCobrado
+    var impactoElectronico = esElectronico ? ganancia : -totalSellados;
+    var impactoEfectivo    = esEfectivo    ? val      : 0;
     state.cart.push({id:'t'+Date.now(),name:nameLabel,price:ganancia,qty:1,total:ganancia,
-      peso:false,tramite:true,totalCobrado:val,totalSellados:totalSellados});
+      peso:false,tramite:true,metodo:metodo,totalCobrado:val,totalSellados:totalSellados,
+      impactoElectronico:impactoElectronico,impactoEfectivo:impactoEfectivo});
   }
   renderCart(); closeDetalleModal();
 }
@@ -1190,8 +1217,16 @@ async function finalizeSale(){
     var vr=await sb.from('ventas').insert({total:r.total,descuento_tipo:r.type==='none'?null:r.type,descuento_valor:r.val,medio_pago:pago,usuario:state.user.nombre}).select().single();
     if(vr.error) throw vr.error;
     var items=state.cart.map(function(item){
+      // Enriquecer snapshot con metadata contable para reportes
+      var snap = item.name;
+      if(item.tramite && item.totalCobrado){
+        snap = item.name + '|cobrado:'+item.totalCobrado+'|sellados:'+(item.totalSellados||0)+'|pago:'+(item.metodo||'');
+      }
+      if(item.esProvinciaNet){
+        snap = item.name + '|monto:'+item.montoOperacion+'|recargo:'+(item.recargo||0)+'|pago:'+item.metodo;
+      }
       return{venta_id:vr.data.id,producto_id:(item.tramite)?null:item.esControl?item.prodId:item.id,
-        nombre_snapshot:item.name,precio_unitario:item.price,cantidad:item.qty,total:item.total};
+        nombre_snapshot:snap,precio_unitario:item.price,cantidad:item.qty,total:item.total};
     });
     await sb.from('venta_items').insert(items);
     for(var i=0;i<state.cart.length;i++){
@@ -1820,6 +1855,83 @@ async function loadReportes(){
   var pgMap={};
   state.ventasData.forEach(function(v){ if(!pgMap[v.medio_pago]) pgMap[v.medio_pago]=0; pgMap[v.medio_pago]+=parseFloat(v.total); });
   document.getElementById('pago-break').innerHTML=Object.keys(pgMap).map(function(k){ return '<div class="row-between" style="padding:6px 0;border-bottom:1px solid var(--border)"><span>'+k+'</span><span style="font-weight:600;color:var(--success)">'+fmt(pgMap[k])+'</span></div>'; }).join('')||'<div style="color:var(--text3);font-size:13px">Sin datos</div>';
+  // ── Desglose por caja (doble asiento) ─────────────────────────────────────
+  var desgloseMP = 0, desgloseEF = 0;
+
+  function parseMeta(snap){
+    var meta = {};
+    var parts = snap.split('|');
+    parts.forEach(function(p){
+      var kv = p.split(':');
+      if(kv.length>=2) meta[kv[0]] = parseFloat(kv.slice(1).join(':'))||kv.slice(1).join(':');
+    });
+    return meta;
+  }
+
+  state.ventasData.forEach(function(v){
+    if(!v.venta_items) return;
+    v.venta_items.forEach(function(i){
+      var snap = i.nombre_snapshot || '';
+
+      // ── TRAMITES ──────────────────────────────────────────────────────────
+      if(snap.indexOf('Tramite:')===0 && snap.indexOf('|cobrado:')>-1){
+        var meta = parseMeta(snap);
+        var cobrado = parseFloat(meta.cobrado)||0;
+        var sellados = parseFloat(meta.sellados)||0;
+        var ganancia = cobrado - sellados;
+        var pagoEfectivo = (String(meta.pago).toLowerCase().indexOf('efectivo')>-1) || v.medio_pago==='Efectivo';
+        if(pagoEfectivo){
+          // Efectivo: -sellados en MP, +total cobrado en efectivo
+          desgloseMP -= sellados;
+          desgloseEF += cobrado;
+        } else {
+          // Electronico: +ganancia en MP
+          desgloseMP += ganancia;
+        }
+      } else if(snap.indexOf('Tramite:')===0){
+        // Items sin metadata (compatibilidad con registros anteriores)
+        var tot = parseFloat(i.total)||0;
+        if(v.medio_pago==='Efectivo') desgloseEF += tot;
+        else desgloseMP += tot;
+      }
+
+      // ── PROVINCIA NET ─────────────────────────────────────────────────────
+      if(snap.indexOf('Provincia Net')===0 && snap.indexOf('|monto:')>-1){
+        var meta2 = parseMeta(snap);
+        var monto = parseFloat(meta2.monto)||0;
+        var recargo = parseFloat(meta2.recargo)||0;
+        var totalCliente = monto + recargo;
+        var esEfectivo = (String(meta2.pago).toLowerCase().indexOf('efectivo')>-1) || v.medio_pago==='Efectivo';
+        if(esEfectivo){
+          // -monto operacion de MP (lo que salió), +total cobrado al cliente en efectivo
+          desgloseMP -= monto;
+          desgloseEF += totalCliente;
+        }
+        // Electronico: sin impacto en caja (la fotocopia se registra aparte)
+      }
+    });
+  });
+
+  var desgloseEl = document.getElementById('desglose-caja');
+  if(desgloseEl){
+    var saldoMP = desgloseMP;
+    var saldoEF = desgloseEF;
+    var filas = [
+      {label:'Mercado Pago / Electronico', val:saldoMP, nota:'Tramites electronicos (+ganancia) y efectivo (-sellados, -operacion PN)'},
+      {label:'Efectivo', val:saldoEF, nota:'Total cobrado en tramites y Provincia Net pagados en efectivo'},
+    ];
+    desgloseEl.innerHTML = '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Impacto contable de tramites y Provincia Net sobre cada caja</div>'
+    + filas.map(function(f){
+      var col = f.val >= 0 ? 'var(--success)' : 'var(--danger)';
+      return '<div style="padding:8px 0;border-bottom:1px solid var(--border)">'
+        +'<div class="row-between"><span style="font-weight:500">'+f.label+'</span>'
+        +'<span style="font-weight:600;font-size:16px;color:'+col+'">'+(f.val>0?'+':'')+fmt(f.val)+'</span></div>'
+        +'<div style="font-size:11px;color:var(--text2);margin-top:2px">'+f.nota+'</div>'
+        +'</div>';
+    }).join('')
+    +'<div style="padding:8px 0;font-size:12px;color:var(--text2);font-style:italic">Nota: para el desglose completo con sellados, se recomienda registrar el metodo de pago en cada tramite.</div>';
+  }
+
   document.getElementById('sales-table').innerHTML=state.ventasData.slice(0,50).map(function(v){
     var adj=v.descuento_tipo?(v.descuento_tipo==='disc'?'Desc.':'Aum.')+' '+v.descuento_valor+'%':'—';
     return '<tr>'
@@ -2121,17 +2233,39 @@ function quitarSellado(i){
   renderSelladosLista();
 }
 
+function selectTrMetodo(metodo){
+  var esEf = metodo==='efectivo';
+  var rEf = document.getElementById('tr-radio-efectivo');
+  var rEl = document.getElementById('tr-radio-electronico');
+  var oEf = document.getElementById('tr-opt-efectivo');
+  var oEl = document.getElementById('tr-opt-electronico');
+  if(rEf) rEf.checked = esEf;
+  if(rEl) rEl.checked = !esEf;
+  if(oEf) oEf.style.borderColor = esEf ? 'var(--primary)' : 'transparent';
+  if(oEl) oEl.style.borderColor = !esEf ? 'var(--primary)' : 'transparent';
+  calcTramite();
+}
+
 function calcTramite(){
   var val = parseFloat((document.getElementById('det-val')||{value:'0'}).value)||0;
   var totalSellados = _tramiteSellados.reduce(function(a,b){ return a+b; },0);
   var ganancia = val - totalSellados;
   var resumen = document.getElementById('tramite-resumen');
   if(!resumen) return;
+  var rEf = document.getElementById('tr-radio-efectivo');
+  var esEfectivo = rEf && rEf.checked;
   if(val > 0){
     resumen.style.display = 'block';
     document.getElementById('tr-cobrado').textContent = fmt(val);
-    document.getElementById('tr-sell-row').style.display = totalSellados>0?'':'none';
+    // Sellados: solo si hay y si es efectivo (salen de MP)
+    var sellRow = document.getElementById('tr-sell-row');
+    if(sellRow) sellRow.style.display = (totalSellados>0 && esEfectivo) ? '' : 'none';
     document.getElementById('tr-sellados').textContent = '-'+fmt(totalSellados);
+    // Entrada efectivo: solo si pago efectivo
+    var efRow = document.getElementById('tr-efectivo-row');
+    if(efRow) efRow.style.display = esEfectivo ? '' : 'none';
+    var efVal = document.getElementById('tr-efectivo-val');
+    if(efVal) efVal.textContent = '+'+fmt(val);
     document.getElementById('tr-ganancia').textContent = fmt(ganancia);
     document.getElementById('tr-ganancia').style.color = ganancia>=0?'var(--success)':'var(--danger)';
   } else {
