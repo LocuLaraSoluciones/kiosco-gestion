@@ -434,8 +434,22 @@ tr:hover td{background:#fafaf8}
         <p style="font-weight:600;margin-bottom:12px">🏦 Desglose por caja (tramites y Provincia Net)</p>
         <div id="desglose-caja"></div>
       </div>
-      <div style="display:none"><!-- placeholder -->
-      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="row-between" style="margin-bottom:12px">
+          <p style="font-weight:600;margin:0">🔄 Movimientos de caja</p>
+          <span id="mov-count" style="font-size:12px;color:var(--text2)"></span>
+        </div>
+        <div class="card-flush">
+          <table><thead><tr>
+            <th>Fecha/Hora</th><th>Tipo</th><th>Concepto</th>
+            <th style="text-align:right">MP / Electr.</th>
+            <th style="text-align:right">Efectivo</th>
+            <th style="text-align:right">Monto op.</th>
+          </tr></thead>
+          <tbody id="mov-table"><tr><td colspan="6" class="loading"><span class="spinner"></span></td></tr></tbody>
+          </table>
+        </div>
+        <div id="mov-totales" style="margin-top:10px"></div>
       </div>
       <div class="card-flush">
         <table><thead><tr><th>Fecha/Hora</th><th>Total</th><th>Pago</th><th>Items</th><th>Ajuste</th><th></th></tr></thead>
@@ -1229,6 +1243,51 @@ async function finalizeSale(){
         nombre_snapshot:snap,precio_unitario:item.price,cantidad:item.qty,total:item.total};
     });
     await sb.from('venta_items').insert(items);
+
+    // Registrar movimientos de caja para tramites y provincia net
+    var movimientos = [];
+    for(var ci=0; ci<state.cart.length; ci++){
+      var citem = state.cart[ci];
+      if(citem.esProvinciaNet){
+        if(citem.metodo === 'Efectivo'){
+          movimientos.push({
+            venta_id: vr.data.id,
+            tipo: 'provincia_net_efectivo',
+            concepto: citem.name,
+            impacto_mp: -citem.montoOperacion,
+            impacto_efectivo: citem.montoOperacion + (citem.recargo||0),
+            monto_operacion: citem.montoOperacion
+          });
+        }
+        // electronico: sin movimiento de caja
+      } else if(citem.tramite && citem.totalCobrado){
+        var metodoTramite = citem.metodo || pago;
+        var esEfTramite = metodoTramite.toLowerCase().indexOf('efectivo') > -1 || pago === 'Efectivo';
+        if(esEfTramite){
+          movimientos.push({
+            venta_id: vr.data.id,
+            tipo: 'tramite_efectivo',
+            concepto: citem.name,
+            impacto_mp: -(citem.totalSellados||0),
+            impacto_efectivo: citem.totalCobrado,
+            monto_operacion: citem.totalCobrado
+          });
+        } else {
+          movimientos.push({
+            venta_id: vr.data.id,
+            tipo: 'tramite_electronico',
+            concepto: citem.name,
+            impacto_mp: citem.total,
+            impacto_efectivo: 0,
+            monto_operacion: citem.totalCobrado
+          });
+        }
+      }
+    }
+    if(movimientos.length > 0){
+      await sb.from('movimientos_caja').insert(movimientos);
+    }
+
     for(var i=0;i<state.cart.length;i++){
       var item=state.cart[i]; if(item.tramite) continue;
       var pid=item.esControl?item.prodId:item.id;
@@ -1931,6 +1990,53 @@ async function loadReportes(){
     }).join('')
     +'<div style="padding:8px 0;font-size:12px;color:var(--text2);font-style:italic">Nota: para el desglose completo con sellados, se recomienda registrar el metodo de pago en cada tramite.</div>';
   }
+
+  // Cargar movimientos de caja del periodo
+  var qmov = sb.from('movimientos_caja')
+    .select('*,ventas(created_at,usuario)')
+    .order('created_at', {ascending:false});
+  if(desde) qmov = qmov.gte('created_at', desde+'T00:00:00');
+  if(hasta) qmov = qmov.lte('created_at', hasta+'T23:59:59');
+  var rmov = await qmov.limit(200);
+  var movs = rmov.data || [];
+
+  var totMP=0, totEF=0;
+  movs.forEach(function(m){ totMP+=parseFloat(m.impacto_mp)||0; totEF+=parseFloat(m.impacto_efectivo)||0; });
+
+  document.getElementById('mov-count').textContent = movs.length + ' movimiento(s)';
+
+  var TIPO_LABEL = {
+    'tramite_efectivo':    {label:'Tramite Efectivo',   color:'var(--warning)'},
+    'tramite_electronico': {label:'Tramite Electronico', color:'var(--info)'},
+    'provincia_net_efectivo': {label:'Provincia Net EF', color:'var(--primary)'}
+  };
+
+  document.getElementById('mov-table').innerHTML = movs.length ? movs.map(function(m){
+    var info = TIPO_LABEL[m.tipo] || {label:m.tipo, color:'var(--text2)'};
+    var fecha = m.ventas ? fmtDT(m.ventas.created_at) : fmtDT(m.created_at);
+    var usuario = m.ventas ? m.ventas.usuario : '';
+    var impMP = parseFloat(m.impacto_mp)||0;
+    var impEF = parseFloat(m.impacto_efectivo)||0;
+    var conceptoCorto = m.concepto.split('|')[0];
+    return '<tr>'
+      +'<td style="font-size:11px;color:var(--text2)">'+fecha+(usuario?'<br>'+usuario:'')+'</td>'
+      +'<td><span class="tag" style="background:'+info.color+'22;color:'+info.color+';font-size:11px">'+info.label+'</span></td>'
+      +'<td style="font-size:12px">'+conceptoCorto+'</td>'
+      +'<td style="text-align:right;font-weight:600;color:'+(impMP>=0?'var(--success)':'var(--danger)')+'">'+
+        (impMP>=0?'+':'')+fmt(impMP)+'</td>'
+      +'<td style="text-align:right;font-weight:600;color:'+(impEF>=0?'var(--success)':'var(--danger)')+'">'+
+        (impEF>=0?'+':'')+fmt(impEF)+'</td>'
+      +'<td style="text-align:right;color:var(--text2);font-size:12px">'+fmt(parseFloat(m.monto_operacion)||0)+'</td>'
+      +'</tr>';
+  }).join('') : '<tr><td colspan="6" style="color:var(--text3);padding:12px;text-align:center">Sin movimientos en el periodo</td></tr>';
+
+  document.getElementById('mov-totales').innerHTML =
+    '<div class="grid2" style="gap:10px">'
+    +'<div class="metric-card"><div class="metric-label">Total MP / Electronico</div>'
+    +'<div class="metric-value" style="font-size:18px;color:'+(totMP>=0?'var(--success)':'var(--danger)')+'">'+(totMP>0?'+':'')+fmt(totMP)+'</div></div>'
+    +'<div class="metric-card"><div class="metric-label">Total Efectivo</div>'
+    +'<div class="metric-value" style="font-size:18px;color:'+(totEF>=0?'var(--success)':'var(--danger)')+'">'+(totEF>0?'+':'')+fmt(totEF)+'</div></div>'
+    +'</div>';
 
   document.getElementById('sales-table').innerHTML=state.ventasData.slice(0,50).map(function(v){
     var adj=v.descuento_tipo?(v.descuento_tipo==='disc'?'Desc.':'Aum.')+' '+v.descuento_valor+'%':'—';
