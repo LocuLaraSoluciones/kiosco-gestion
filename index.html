@@ -379,8 +379,8 @@ tr:hover td{background:#fafaf8}
       <div class="grid2" style="align-items:start">
         <div class="card">
           <p style="font-weight:600;font-size:14px;margin-bottom:12px" id="prod-form-title">➕ Nuevo producto</p>
-          <div class="form-group"><label class="label">Nombre</label><input type="text" id="np-nombre" placeholder="Ej: Coca Cola 500ml"></div>
-          <div class="form-group"><label class="label">Codigo de barras / ECR</label><input type="text" id="np-barcode" placeholder="Escanear o escribir..." style="font-family:monospace"></div>
+          <div class="form-group"><label class="label">Nombre</label><input type="text" id="np-nombre" placeholder="Ej: Coca Cola 500ml" oninput="validarArticuloExistente()"><div id="np-nombre-warn" style="display:none;color:var(--danger);font-size:11px;font-weight:600;margin-top:3px">ARTICULO EXISTENTE</div></div>
+          <div class="form-group"><label class="label">Codigo de barras / ECR</label><input type="text" id="np-barcode" placeholder="Escanear o escribir..." style="font-family:monospace" oninput="validarArticuloExistente()"><div id="np-barcode-warn" style="display:none;color:var(--danger);font-size:11px;font-weight:600;margin-top:3px">ARTICULO EXISTENTE</div></div>
           <div class="form-group"><label class="label">Codigo Universo (controles, opcional)</label><input type="text" id="np-universo" placeholder="Ej: U-S001" style="font-family:monospace"></div>
           <div class="form-group"><label class="label">Categoria</label><select id="np-cat"></select></div>
           <div class="form-group"><label class="label">Precio de venta ($)</label><input type="number" id="np-precio" placeholder="0,00" min="0" step="0.01"></div>
@@ -851,6 +851,19 @@ function showSection(s,btn){
 // ── LINEA ACTIVA ───────────────────────────────────────────────────────────────
 function focusLinea(){ setTimeout(function(){ var el=document.getElementById('linea-activa'); if(el)el.focus(); },80); }
 
+// Foco automatico al volver al tab del navegador
+document.addEventListener('visibilitychange', function(){
+  if(!document.hidden){
+    var sec = document.getElementById('sec-ventas');
+    if(sec && sec.classList.contains('active')) focusLinea();
+  }
+});
+// Foco automatico al hacer foco en la ventana
+window.addEventListener('focus', function(){
+  var sec = document.getElementById('sec-ventas');
+  if(sec && sec.classList.contains('active')) focusLinea();
+});
+
 var sugIdx = -1;
 
 function setSugIdx(idx){
@@ -919,6 +932,11 @@ function liveSearch(val){
   }).join('');
 }
 
+function esCodigoBarras(val){
+  // Codigo de barras: solo numeros, entre 8 y 14 digitos (EAN-8, EAN-13, UPC-A, etc)
+  return /^\d{8,14}$/.test(val.trim());
+}
+
 function handleLinea(e){
   var sg=document.getElementById('linea-sugs');
   var visible=sg.style.display!=='none';
@@ -932,6 +950,28 @@ function handleLinea(e){
   document.getElementById('linea-sugs').style.display='none';
   sugIdx=-1;
   if(!val) return;
+
+  // Escaneo directo por codigo de barras: agregar sin modal
+  if(esCodigoBarras(val)){
+    var pb = state.productos.find(function(x){ return x.codigo_barras && x.codigo_barras === val; });
+    if(pb){
+      document.getElementById('linea-activa').value='';
+      var catNb = pb.categorias ? pb.categorias.nombre : '';
+      var esCtrlb = ['TV','Aire Acond','Voz'].indexOf(catNb) > -1;
+      if(esCtrlb){
+        // Controles siempre via modal para seleccionar modelo
+        abrirModalModelo(catNb); return;
+      }
+      if(pb.stock_minimo>0 && pb.stock<=0){ toast('Sin stock: '+pb.nombre, false); focusLinea(); return; }
+      // Sumar al ticket: si ya existe sumar 1, si no crear con qty=1
+      var ex = state.cart.find(function(x){ return x.id===pb.id && !x.peso; });
+      if(ex){ ex.qty+=1; ex.total=ex.qty*ex.price; }
+      else state.cart.push({id:pb.id,name:pb.nombre,price:pb.precio,qty:1,total:pb.precio,peso:false});
+      renderCart();
+      focusLinea();
+      return;
+    }
+  }
   var q=val.toLowerCase();
 
   // Tramite
@@ -1300,10 +1340,13 @@ async function finalizeSale(){
     }
     var snap=state.cart.slice();
     state.cart=[]; renderCart(); renderProdGrid();
-    document.getElementById('disc-type').value='none'; document.getElementById('disc-val').value='';
+    document.getElementById('disc-type').value='none';
+    document.getElementById('disc-val').value='';
+    document.getElementById('payment-method').value='Efectivo';
     // Imprimir automaticamente
     imprimirVenta({id:vr.data.id, fecha:now, items:snap, total:r.total, type:r.type, val:r.val, pago:pago});
     toast('Venta #'+vr.data.id+' registrada');
+    focusLinea();
   }catch(e){ toast('Error al registrar venta',false); console.error(e); }
   btn.disabled=false; btn.textContent='Cobrar y registrar venta';
 }
@@ -1740,6 +1783,54 @@ async function guardarStockSilencioso(prodId, valor, callback){
   }
   if(callback) callback();
 }
+function validarArticuloExistente(){
+  var nombre = (document.getElementById('np-nombre').value||'').trim().toLowerCase();
+  var barcode = (document.getElementById('np-barcode').value||'').trim().toLowerCase();
+  var btnSave = document.getElementById('btn-save-prod');
+  if(state.editingProdId) return; // en modo edicion no validar
+
+  var matchNombre = nombre.length > 2 && state.productos.find(function(p){
+    return p.nombre.toLowerCase() === nombre;
+  });
+  var matchBarcode = barcode.length > 2 && state.productos.find(function(p){
+    return p.codigo_barras && p.codigo_barras.toLowerCase() === barcode;
+  });
+
+  var encontrado = matchNombre || matchBarcode;
+
+  // Mostrar warnings
+  var wnombre = document.getElementById('np-nombre-warn');
+  var wbarcode = document.getElementById('np-barcode-warn');
+  if(wnombre) wnombre.style.display = matchNombre ? 'block' : 'none';
+  if(wbarcode) wbarcode.style.display = matchBarcode ? 'block' : 'none';
+
+  if(encontrado){
+    // Rellenar formulario con datos del existente
+    var p = encontrado;
+    if(document.getElementById('np-nombre').value.trim()) document.getElementById('np-nombre').value = p.nombre;
+    document.getElementById('np-barcode').value = p.codigo_barras || '';
+    document.getElementById('np-universo').value = p.notas || '';
+    document.getElementById('np-cat').value = p.categoria_id || '';
+    document.getElementById('np-precio').value = p.precio || '';
+    document.getElementById('np-stock').value = p.stock || '';
+    document.getElementById('np-min').value = p.stock_minimo || '';
+    document.getElementById('np-prov').value = p.proveedor_id || '';
+    document.getElementById('np-peso').checked = p.por_peso || false;
+    // Deshabilitar boton agregar
+    if(btnSave && !state.editingProdId){
+      btnSave.disabled = true;
+      btnSave.style.opacity = '0.5';
+      btnSave.title = 'Este articulo ya existe en el sistema';
+    }
+  } else {
+    if(btnSave){
+      btnSave.disabled = false;
+      btnSave.style.opacity = '';
+      btnSave.title = '';
+    }
+  }
+}
+
 async function saveProduct(){
   var nombre=document.getElementById('np-nombre').value.trim();
   var catId=parseInt(document.getElementById('np-cat').value);
@@ -1784,9 +1875,12 @@ function editProduct(id){
 function cancelEditProd(){
   state.editingProdId=null;
   document.getElementById('prod-form-title').textContent='Nuevo producto';
-  document.getElementById('btn-save-prod').textContent='Agregar';
+  var btn = document.getElementById('btn-save-prod');
+  btn.textContent='Agregar'; btn.disabled=false; btn.style.opacity=''; btn.title='';
   document.getElementById('btn-cancel-prod').style.display='none';
   document.getElementById('np-nombre').value=''; document.getElementById('np-precio').value='';
+  var wn=document.getElementById('np-nombre-warn'); if(wn) wn.style.display='none';
+  var wb=document.getElementById('np-barcode-warn'); if(wb) wb.style.display='none';
 }
 async function deleteProduct(id){
   if(!confirm('Eliminar?')) return;
