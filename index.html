@@ -1338,13 +1338,10 @@ async function finalizeSale(){
         p.stock=ns;
       }
     }
-    var snap=state.cart.slice();
     state.cart=[]; renderCart(); renderProdGrid();
     document.getElementById('disc-type').value='none';
     document.getElementById('disc-val').value='';
     document.getElementById('payment-method').value='Efectivo';
-    // Imprimir automaticamente
-    imprimirVenta({id:vr.data.id, fecha:now, items:snap, total:r.total, type:r.type, val:r.val, pago:pago});
     toast('Venta #'+vr.data.id+' registrada');
     focusLinea();
   }catch(e){ toast('Error al registrar venta',false); console.error(e); }
