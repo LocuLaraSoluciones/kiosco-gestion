@@ -112,7 +112,7 @@ tr:hover td{background:#fafaf8}
 .prod-price{font-size:13px;color:var(--success);font-weight:600}
 .prod-stock{font-size:11px;color:var(--text3);margin-top:2px}
 .prod-stock.sin{color:var(--danger);font-weight:500}
-.cart-item{display:flex;align-items:center;gap:7px;padding:8px 0;border-bottom:1px solid var(--border)}
+.cart-item{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}
 .cart-item:last-child{border-bottom:none}
 .qty-btn{width:26px;height:26px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;background:transparent;color:var(--text);font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .qty-btn:hover{background:var(--bg)}
@@ -126,7 +126,7 @@ tr:hover td{background:#fafaf8}
 .spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .receipt{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;font-size:13px;margin-top:12px}
-.linea-input{width:100%;padding:12px 14px;font-size:15px;border:2px solid var(--primary);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);outline:none;font-family:inherit}
+.linea-input{width:100%;padding:15px 16px;font-size:18px;border:2px solid var(--primary);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);outline:none;font-family:inherit;font-weight:500}
 .linea-input:focus{border-color:var(--primary-dark);box-shadow:0 0 0 3px rgba(184,98,31,.15)}
 .sugerencias{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:2px;max-height:220px;overflow-y:auto;position:relative;z-index:50}
 .sug-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px}
@@ -213,21 +213,21 @@ tr:hover td{background:#fafaf8}
     <div class="section active" id="sec-ventas">
       <div style="max-width:520px;margin:0 auto">
         <div class="row" style="margin-bottom:10px;gap:6px">
-          <button class="btn btn-primary" style="flex:1;padding:9px 6px;font-size:12px" onclick="openProductModal()">📋 Ver productos</button>
-          <button class="btn" style="flex:1;padding:9px 6px;font-size:12px;border-color:var(--warning);color:var(--warning);background:var(--warning-bg)" onclick="abrirDetalleModal('tramite',null)">🗂️ Tramites</button>
-          <button class="btn" style="flex:1;padding:9px 6px;font-size:12px;border-color:var(--info);color:var(--info);background:var(--info-bg)" onclick="abrirProvinciaNet()">🏦 Provincia Net</button>
+          <button class="btn btn-primary" style="flex:1;padding:13px 8px;font-size:15px;font-weight:600" onclick="openProductModal()">📋 Ver productos</button>
+          <button class="btn" style="flex:1;padding:13px 8px;font-size:15px;font-weight:600;border-color:var(--warning);color:var(--warning);background:var(--warning-bg)" onclick="abrirDetalleModal('tramite',null)">🗂️ Tramites</button>
+          <button class="btn" style="flex:1;padding:13px 8px;font-size:15px;font-weight:600;border-color:var(--info);color:var(--info);background:var(--info-bg)" onclick="abrirProvinciaNet()">🏦 Provincia Net</button>
         </div>
         <input class="linea-input" id="linea-activa" placeholder="Codigo, nombre o 'tramite'..." autocomplete="off" onkeydown="handleLinea(event)" oninput="liveSearch(this.value)">
         <div id="linea-sugs" class="sugerencias" style="display:none"></div>
         <div style="height:10px"></div>
         <div class="card">
           <div class="row-between" style="margin-bottom:12px">
-            <span style="font-weight:600;font-size:15px">🧾 Ticket</span>
-            <button class="btn btn-sm btn-danger" onclick="clearCart()">Limpiar</button>
+            <span style="font-weight:700;font-size:17px">🧾 Ticket</span>
+            <button class="btn btn-danger" style="font-size:14px;padding:7px 14px" onclick="clearCart()">Limpiar</button>
           </div>
           <div id="cart-items" style="min-height:60px;max-height:280px;overflow-y:auto"></div>
           <hr class="divider">
-          <div class="row-between" style="margin-bottom:8px;font-size:13px">
+          <div class="row-between" style="margin-bottom:8px;font-size:15px">
             <span style="color:var(--text2)">Subtotal</span><span id="subtotal">$0,00</span>
           </div>
           <div class="form-group">
@@ -241,19 +241,19 @@ tr:hover td{background:#fafaf8}
               <input type="number" id="disc-val" placeholder="%" style="width:70px" min="0" max="100" oninput="recalcTotal()">
             </div>
           </div>
-          <div class="row-between" style="font-size:17px;font-weight:600;margin-bottom:12px">
+          <div class="row-between" style="font-size:24px;font-weight:700;margin-bottom:14px;padding:10px;background:var(--bg);border-radius:var(--radius-sm)">
             <span>Total</span><span id="total-display" style="color:var(--success)">$0,00</span>
           </div>
           <div class="form-group">
-            <label class="label">Medio de pago</label>
-            <select id="payment-method">
+            <label class="label" style="font-size:14px">Medio de pago</label>
+            <select id="payment-method" style="font-size:15px;padding:10px">
               <option>Efectivo</option>
               <option>Transferencia / Mercado Pago</option>
               <option>Debito</option>
               <option>Credito</option>
             </select>
           </div>
-          <button class="btn btn-success btn-full" onclick="finalizeSale()" id="btn-cobrar">✅ Cobrar y registrar venta</button>
+          <button class="btn btn-success btn-full" onclick="finalizeSale()" id="btn-cobrar" style="font-size:17px;padding:16px;font-weight:700;letter-spacing:0.3px">✅ Cobrar y registrar venta</button>
           <div id="last-receipt"></div>
         </div>
       </div>
