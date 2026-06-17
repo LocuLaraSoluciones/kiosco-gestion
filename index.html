@@ -344,12 +344,21 @@ tr:hover td{background:#fafaf8}
           <div id="ing-item-form" style="display:none;background:var(--bg);border-radius:var(--radius-sm);padding:10px;margin-bottom:10px;border:1px solid var(--border)">
             <div style="font-weight:600;font-size:13px;margin-bottom:4px" id="ing-item-nombre"></div>
             <div style="font-size:12px;color:var(--text2);margin-bottom:8px" id="ing-item-info"></div>
-            <div class="row" style="gap:8px">
+            <div class="row" style="gap:8px;margin-bottom:8px">
               <div style="flex:1"><label class="label">Stock actual</label><input type="text" id="ing-item-stock-actual" readonly style="background:var(--bg);color:var(--text2)"></div>
-              <div style="flex:1"><label class="label">Ingresan</label><input type="number" id="ing-item-qty" placeholder="0" min="1" style="font-size:15px;text-align:right" onkeydown="if(event.key==='Enter'){event.preventDefault();agregarItemIngreso();}"></div>
-              <div style="flex:1"><label class="label">Costo u. ($)</label><input type="number" id="ing-item-costo" placeholder="0,00" min="0" step="0.01"></div>
+              <div style="flex:1"><label class="label">Ingresan</label><input type="number" id="ing-item-qty" placeholder="0" min="1" style="font-size:15px;text-align:right" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('ing-item-costo').focus();}"></div>
+              <div style="flex:1"><label class="label">Costo u. ($)</label><input type="number" id="ing-item-costo" placeholder="0,00" min="0" step="0.01" style="text-align:right" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('ing-item-precio-venta').focus();}"></div>
             </div>
-            <button class="btn btn-primary btn-full" style="margin-top:8px" onclick="agregarItemIngreso()">+ Agregar a la lista</button>
+            <div class="row" style="gap:8px;margin-bottom:8px;align-items:center">
+              <div style="flex:1">
+                <label class="label">Precio de venta actual ($)</label>
+                <input type="number" id="ing-item-precio-venta" placeholder="0,00" min="0" step="0.01" style="text-align:right;border-color:var(--warning)" onkeydown="if(event.key==='Enter'){event.preventDefault();agregarItemIngreso();}">
+              </div>
+              <div style="flex:0;padding-top:16px">
+                <span id="ing-item-precio-warn" style="display:none;font-size:11px;color:var(--warning);font-weight:600;white-space:nowrap">⚠️ Precio modificado</span>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-full" onclick="agregarItemIngreso()">+ Agregar a la lista</button>
           </div>
           <div id="ing-lista" style="margin-bottom:12px"></div>
           <div id="ing-confirmar-btn" style="display:none">
@@ -1250,7 +1259,8 @@ function chgQty(i,d){ state.cart[i].qty+=d; if(state.cart[i].qty<=0) state.cart.
 function rmItem(i){ state.cart.splice(i,1); renderCart(); }
 function clearCart(){ state.cart=[]; renderCart(); document.getElementById('last-receipt').innerHTML=''; }
 function recalcTotal(){
-  var sub=state.cart.reduce(function(a,b){ return a+b.total; },0);
+  // Para el subtotal visible: usar totalCobrado en PNet (lo que paga el cliente)
+  var sub=state.cart.reduce(function(a,b){ return a+(b.esProvinciaNet?b.totalCobrado:b.total); },0);
   document.getElementById('subtotal').textContent=fmt(sub);
   var type=document.getElementById('disc-type').value;
   var val=parseFloat(document.getElementById('disc-val').value)||0;
@@ -1280,7 +1290,8 @@ async function finalizeSale(){
         snap = item.name + '|monto:'+item.montoOperacion+'|recargo:'+(item.recargo||0)+'|pago:'+item.metodo;
       }
       return{venta_id:vr.data.id,producto_id:(item.tramite)?null:item.esControl?item.prodId:item.id,
-        nombre_snapshot:snap,precio_unitario:item.price,cantidad:item.qty,total:item.total};
+        nombre_snapshot:snap,precio_unitario:item.price,cantidad:item.qty,
+        total:item.esProvinciaNet?(item.gananciaInterna||0):item.total};
     });
     await sb.from('venta_items').insert(items);
 
@@ -1489,6 +1500,14 @@ function selItemIngreso(id){
   document.getElementById('ing-item-stock-actual').value=(p.stock_minimo===0?'Sin control (inf)':p.stock+' unidades');
   document.getElementById('ing-item-qty').value='';
   document.getElementById('ing-item-costo').value='';
+  document.getElementById('ing-item-precio-venta').value=p.precio||'';
+  document.getElementById('ing-item-precio-warn').style.display='none';
+  // Detectar cambio en precio para mostrar advertencia
+  var precioOriginal = p.precio||0;
+  document.getElementById('ing-item-precio-venta').oninput=function(){
+    var nuevo = parseFloat(this.value)||0;
+    document.getElementById('ing-item-precio-warn').style.display = (nuevo !== precioOriginal && nuevo > 0) ? 'inline' : 'none';
+  };
   document.getElementById('ing-item-form').style.display='block';
   setTimeout(function(){ document.getElementById('ing-item-qty').focus(); document.getElementById('ing-item-qty').select(); },50);
 }
@@ -1507,7 +1526,16 @@ function agregarItemIngreso(){
   if(!ingresoItemActual) return;
   var qty=parseFloat(document.getElementById('ing-item-qty').value)||0;
   var costo=parseFloat(document.getElementById('ing-item-costo').value)||0;
+  var nuevoPrecio=parseFloat(document.getElementById('ing-item-precio-venta').value)||0;
   if(!qty||qty<=0){ toast('Ingresa la cantidad',false); return; }
+  // Si el precio cambió, actualizarlo en Supabase inmediatamente
+  var p=state.productos.find(function(x){ return x.id===ingresoItemActual.id; });
+  if(p && nuevoPrecio>0 && nuevoPrecio!==p.precio){
+    sb.from('productos').update({precio:nuevoPrecio}).eq('id',p.id).then(function(){
+      p.precio=nuevoPrecio; renderProdGrid();
+    });
+    toast('Precio de '+p.nombre+' actualizado');
+  }
   var ex=ingresoItems.find(function(x){ return x.id===ingresoItemActual.id; });
   if(ex){ ex.qty+=qty; ex.costo=costo; }
   else ingresoItems.push({tipo:ingresoItemActual.tipo,id:ingresoItemActual.id,nombre:ingresoItemActual.nombre,qty:qty,costo:costo});
@@ -2371,16 +2399,17 @@ function confirmarProvinciaNet(){
   var metodoLabel = esEfectivo ? 'Efectivo' : 'Electronico';
   var nameLabel = 'Provincia Net (' + metodoLabel + ')' + (recargo>0 ? ' +'+fmt(recargo) : '');
 
-  // Para reportes internos: efectivo registra monto negativo (costo) + recargo (ganancia)
-  // Electronico: no impacta reportes (ganancia = 0, solo fotocopia aparte)
+  // price/total = lo que cobra el cliente (para subtotal correcto)
+  // gananciaInterna = lo que queda al local (para reportes)
   var gananciaInterna = esEfectivo ? recargo : 0;
 
   state.cart.push({
     id: 'pn_' + Date.now(),
     name: nameLabel,
-    price: gananciaInterna,
+    price: totalCliente,
     qty: 1,
-    total: gananciaInterna,
+    total: totalCliente,
+    gananciaInterna: gananciaInterna,
     totalCobrado: totalCliente,
     peso: false,
     tramite: true,
