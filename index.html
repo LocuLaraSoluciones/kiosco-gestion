@@ -204,7 +204,6 @@ tr:hover td{background:#fafaf8}
     <button class="nav-btn" onclick="showSection('tickets',this)">🧾 Tickets del dia</button>
     <button class="nav-btn admin-only" onclick="showSection('productos',this)">🏷️ Productos</button>
     <button class="nav-btn admin-only" onclick="showSection('reportes',this)">📊 Reportes</button>
-    <button class="nav-btn admin-only" onclick="showSection('precios',this)">💲 Precios</button>
     <button class="nav-btn admin-only" onclick="showSection('config',this)">⚙️ Config</button>
   </div>
   <div class="content">
@@ -383,6 +382,7 @@ tr:hover td{background:#fafaf8}
           <input type="text" placeholder="Buscar..." id="prod-list-search" oninput="renderProdTable()" style="width:160px">
           <select id="prod-list-cat" onchange="renderProdTable()" style="width:auto"><option value="">Todas las categorias</option></select>
           <button class="btn btn-sm" style="border-color:var(--warning);color:var(--warning)" onclick="openCambioProveedorModal()">🔄 Cambiar proveedor</button>
+          <button class="btn btn-sm" style="border-color:var(--primary);color:var(--primary-dark);background:var(--primary-bg)" onclick="openRemarcadoModal()">💲 Remarcar</button>
         </div>
       </div>
       <div class="grid2" style="align-items:start">
@@ -467,37 +467,7 @@ tr:hover td{background:#fafaf8}
     </div>
 
     <!-- PRECIOS -->
-    <div class="section" id="sec-precios">
-      <div class="grid2" style="align-items:start">
-        <div class="card">
-          <p style="font-weight:600;font-size:15px;margin-bottom:14px">💲 Remarcar precios</p>
-          <div class="form-group"><label class="label">Aplicar a</label>
-            <select id="rem-scope" onchange="toggleRemScope()">
-              <option value="cat">Categoria completa</option>
-              <option value="prod">Producto individual</option>
-            </select>
-          </div>
-          <div class="form-group" id="rem-cat-g"><label class="label">Categoria</label><select id="rem-cat"></select></div>
-          <div class="form-group" id="rem-prod-g" style="display:none"><label class="label">Producto</label><select id="rem-prod-sel"></select></div>
-          <div class="form-group"><label class="label">Tipo</label>
-            <select id="rem-type" onchange="document.getElementById('rem-val-label').textContent=this.value==='fixed'?'Precio fijo ($)':'Porcentaje (%)'">
-              <option value="inc">Aumento %</option>
-              <option value="dec">Descuento %</option>
-              <option value="fixed">Precio fijo ($)</option>
-            </select>
-          </div>
-          <div class="form-group"><label class="label" id="rem-val-label">Porcentaje (%)</label><input type="number" id="rem-val" placeholder="0" min="0" step="0.01"></div>
-          <button class="btn btn-primary btn-full" onclick="aplicarRemarcado()">✅ Aplicar</button>
-        </div>
-        <div>
-          <p style="font-weight:600;font-size:15px;margin-bottom:14px">Precios actuales</p>
-          <div class="card-flush" style="max-height:500px;overflow-y:auto">
-            <table><thead><tr><th>Producto</th><th>Categoria</th><th>Precio</th></tr></thead>
-            <tbody id="price-preview"></tbody></table>
-          </div>
-        </div>
-      </div>
-    </div>
+
 
     <!-- CONFIG -->
     <div class="section" id="sec-config">
@@ -677,6 +647,39 @@ tr:hover td{background:#fafaf8}
   </div>
 </div>
 
+<!-- MODAL REMARCAR PRECIOS -->
+<div id="modal-remarcado" class="modal-overlay">
+  <div class="modal-box modal-sm">
+    <div class="row-between" style="margin-bottom:14px">
+      <span style="font-weight:600;font-size:15px">💲 Remarcar precios</span>
+      <button class="btn btn-sm" onclick="closeRemarcadoModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="label">Aplicar a</label>
+      <select id="rem-scope" onchange="toggleRemScope()">
+        <option value="cat">Categoria completa</option>
+        <option value="prod">Producto individual</option>
+      </select>
+    </div>
+    <div class="form-group" id="rem-cat-g"><label class="label">Categoria</label><select id="rem-cat"></select></div>
+    <div class="form-group" id="rem-prod-g" style="display:none"><label class="label">Producto</label><select id="rem-prod-sel"></select></div>
+    <div class="form-group">
+      <label class="label">Tipo</label>
+      <select id="rem-type" onchange="document.getElementById('rem-val-label').textContent=this.value==='fixed'?'Precio fijo ($)':'Porcentaje (%)'">
+        <option value="inc">Aumento %</option>
+        <option value="dec">Descuento %</option>
+        <option value="fixed">Precio fijo ($)</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="label" id="rem-val-label">Porcentaje (%)</label><input type="number" id="rem-val" placeholder="0" min="0" step="0.01" style="text-align:right"></div>
+    <div id="rem-preview" style="display:none;font-size:12px;color:var(--text2);margin-bottom:10px;padding:8px;background:var(--bg);border-radius:var(--radius-sm)"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1" onclick="aplicarRemarcado()">✅ Aplicar</button>
+      <button class="btn" onclick="closeRemarcadoModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL CAMBIO PROVEEDOR -->
 <div id="modal-cambio-prov" class="modal-overlay">
   <div class="modal-box" style="max-width:600px;margin:3vh auto 0">
@@ -846,7 +849,6 @@ function showSection(s,btn){
   if(btn) btn.classList.add('active');
   if(s==='stock') renderStock();
   if(s==='reportes') loadReportes();
-  if(s==='precios') renderPrecios();
   if(s==='productos'){ populateProdForm(); renderProdTable(); }
   if(s==='ingreso'){ initIngresoForm(); loadIngresos(); }
   if(s==='config'){
@@ -1593,7 +1595,6 @@ function populateProdForm(){
   document.getElementById('np-prov').innerHTML=state.proveedores.map(function(p){ return '<option value="'+p.id+'">'+p.nombre+'</option>'; }).join('');
   var sel=document.getElementById('prod-list-cat');
   if(sel) sel.innerHTML='<option value="">Todas las categorias</option>'+state.categorias.map(function(c){ return '<option value="'+c.nombre+'">'+c.nombre+'</option>'; }).join('');
-  renderPrecios();
 }
 var _prodListFiltered = [];
 
@@ -2177,23 +2178,43 @@ function exportCSV(){
 }
 
 // ── PRECIOS ────────────────────────────────────────────────────────────────────
+function openRemarcadoModal(){
+  document.getElementById('rem-cat').innerHTML = state.categorias.map(function(c){ return '<option value="'+c.nombre+'">'+c.nombre+'</option>'; }).join('');
+  document.getElementById('rem-prod-sel').innerHTML = state.productos.map(function(p){ return '<option value="'+p.id+'">'+p.nombre+'</option>'; }).join('');
+  document.getElementById('rem-val').value = '';
+  document.getElementById('rem-scope').value = 'cat';
+  document.getElementById('rem-cat-g').style.display = '';
+  document.getElementById('rem-prod-g').style.display = 'none';
+  document.getElementById('rem-preview').style.display = 'none';
+  document.getElementById('modal-remarcado').style.display = 'block';
+  setTimeout(function(){ document.getElementById('rem-val').focus(); }, 80);
+}
+function closeRemarcadoModal(){
+  document.getElementById('modal-remarcado').style.display = 'none';
+}
 function renderPrecios(){
-  var remCat=document.getElementById('rem-cat'); var remProd=document.getElementById('rem-prod-sel');
+  // Solo actualiza los selects si el modal está abierto
+  var remCat=document.getElementById('rem-cat');
+  var remProd=document.getElementById('rem-prod-sel');
   if(remCat) remCat.innerHTML=state.categorias.map(function(c){ return '<option value="'+c.nombre+'">'+c.nombre+'</option>'; }).join('');
   if(remProd) remProd.innerHTML=state.productos.map(function(p){ return '<option value="'+p.id+'">'+p.nombre+'</option>'; }).join('');
-  var pp=document.getElementById('price-preview');
-  if(pp) pp.innerHTML=state.productos.map(function(p){ return '<tr><td>'+p.nombre+'</td><td><span class="tag tag-purple">'+(p.categorias?p.categorias.nombre:'-')+'</span></td><td style="font-weight:600;color:var(--success)">'+fmt(p.precio)+'</td></tr>'; }).join('');
 }
 function toggleRemScope(){ var s=document.getElementById('rem-scope').value; document.getElementById('rem-cat-g').style.display=s==='cat'?'':'none'; document.getElementById('rem-prod-g').style.display=s==='prod'?'':'none'; }
 async function aplicarRemarcado(){
   var scope=document.getElementById('rem-scope').value,type=document.getElementById('rem-type').value,val=parseFloat(document.getElementById('rem-val').value)||0;
   if(!val){ toast('Ingresa un valor',false); return; }
-  var affected=scope==='cat'?state.productos.filter(function(p){ return (p.categorias&&p.categorias.nombre)===document.getElementById('rem-cat').value; }):state.productos.filter(function(p){ return p.id===parseInt(document.getElementById('rem-prod-sel').value); });
+  var affected=scope==='cat'
+    ?state.productos.filter(function(p){ return (p.categorias&&p.categorias.nombre)===document.getElementById('rem-cat').value; })
+    :state.productos.filter(function(p){ return p.id===parseInt(document.getElementById('rem-prod-sel').value); });
+  if(!affected.length){ toast('No hay productos en esa seleccion',false); return; }
+  if(!confirm('Actualizar precio en '+affected.length+' producto(s)?')) return;
   for(var i=0;i<affected.length;i++){
-    var p=affected[i]; var np=type==='inc'?Math.round(p.precio*(1+val/100)):type==='dec'?Math.round(p.precio*(1-val/100)):val;
+    var p=affected[i];
+    var np=type==='inc'?Math.round(p.precio*(1+val/100)):type==='dec'?Math.round(p.precio*(1-val/100)):val;
     await sb.from('productos').update({precio:np}).eq('id',p.id); p.precio=np;
   }
-  renderPrecios(); renderProdGrid(); toast('Actualizado en '+affected.length+' producto(s)');
+  closeRemarcadoModal(); renderProdTable(); renderProdGrid();
+  toast('Precios actualizados en '+affected.length+' producto(s)');
 }
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
