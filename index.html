@@ -243,16 +243,8 @@ tr:hover td{background:#fafaf8}
           <div class="row-between" style="font-size:24px;font-weight:700;margin-bottom:14px;padding:10px;background:var(--bg);border-radius:var(--radius-sm)">
             <span>Total</span><span id="total-display" style="color:var(--success)">$0,00</span>
           </div>
-          <div class="form-group">
-            <label class="label" style="font-size:14px">Medio de pago</label>
-            <select id="payment-method" style="font-size:15px;padding:10px">
-              <option>Efectivo</option>
-              <option>Transferencia / Mercado Pago</option>
-              <option>Debito</option>
-              <option>Credito</option>
-            </select>
-          </div>
-          <button class="btn btn-success btn-full" onclick="finalizeSale()" id="btn-cobrar" style="font-size:17px;padding:16px;font-weight:700;letter-spacing:0.3px">✅ Cobrar y registrar venta</button>
+          <input type="hidden" id="payment-method" value="">
+          <button class="btn btn-success btn-full" onclick="abrirModalPago()" id="btn-cobrar" style="font-size:17px;padding:16px;font-weight:700;letter-spacing:0.3px">✅ Cobrar</button>
           <div id="last-receipt"></div>
         </div>
       </div>
@@ -644,6 +636,28 @@ tr:hover td{background:#fafaf8}
       <input type="text" id="modelo-nuevo-univ" placeholder="Cod. Universo (opc.)" style="flex:1;font-family:monospace">
       <button class="btn btn-sm btn-primary" onclick="crearYAgregarModelo()">+ Crear</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL SELECCION PAGO -->
+<div id="modal-pago" class="modal-overlay">
+  <div class="modal-box" style="max-width:380px;margin:20vh auto 0">
+    <p style="font-weight:700;font-size:18px;text-align:center;margin-bottom:20px">¿Cómo paga el cliente?</p>
+    <div style="display:flex;gap:12px">
+      <button onclick="confirmarPago('Efectivo')"
+        style="flex:1;padding:24px 12px;font-size:20px;font-weight:700;border:2px solid var(--success);border-radius:var(--radius);cursor:pointer;background:var(--success-bg);color:var(--success);transition:all .15s"
+        onmouseover="this.style.background='var(--success)';this.style.color='#fff'"
+        onmouseout="this.style.background='var(--success-bg)';this.style.color='var(--success)'">
+        💵<br>EFECTIVO
+      </button>
+      <button onclick="confirmarPago('Digital')"
+        style="flex:1;padding:24px 12px;font-size:20px;font-weight:700;border:2px solid var(--primary);border-radius:var(--radius);cursor:pointer;background:var(--primary-bg);color:var(--primary-dark);transition:all .15s"
+        onmouseover="this.style.background='var(--primary)';this.style.color='#fff'"
+        onmouseout="this.style.background='var(--primary-bg)';this.style.color='var(--primary-dark)'">
+        📱<br>DIGITAL
+      </button>
+    </div>
+    <button class="btn btn-full" style="margin-top:14px;font-size:14px" onclick="cerrarModalPago()">← Volver al ticket</button>
   </div>
 </div>
 
@@ -1155,7 +1169,7 @@ function confirmDetalle(){
   renderCart(); closeDetalleModal();
 }
 
-document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeProductModal(); closeDetalleModal(); closeModeloModal(); } });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeProductModal(); closeDetalleModal(); closeModeloModal(); cerrarModalPago(); } });
 
 // ── MODAL CONTROLES ────────────────────────────────────────────────────────────
 function abrirModalModelo(cat){
@@ -1273,8 +1287,23 @@ function recalcTotal(){
   return {sub:sub,total:total,type:type,val:val};
 }
 
-async function finalizeSale(){
+function abrirModalPago(){
   if(!state.cart.length){ toast('Agrega productos al ticket',false); return; }
+  document.getElementById('modal-pago').style.display = 'block';
+}
+
+function cerrarModalPago(){
+  document.getElementById('modal-pago').style.display = 'none';
+  focusLinea();
+}
+
+function confirmarPago(metodo){
+  document.getElementById('payment-method').value = metodo;
+  document.getElementById('modal-pago').style.display = 'none';
+  finalizeSale();
+}
+
+async function finalizeSale(){
   var btn=document.getElementById('btn-cobrar'); btn.disabled=true; btn.textContent='Procesando...';
   var r=recalcTotal();
   var pago=document.getElementById('payment-method').value;
@@ -1354,7 +1383,7 @@ async function finalizeSale(){
     state.cart=[]; renderCart(); renderProdGrid();
     document.getElementById('disc-type').value='none';
     document.getElementById('disc-val').value='';
-    document.getElementById('payment-method').value='Efectivo';
+    document.getElementById('payment-method').value='';
     toast('Venta #'+vr.data.id+' registrada');
     focusLinea();
   }catch(e){ toast('Error al registrar venta',false); console.error(e); }
