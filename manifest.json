@@ -1,0 +1,29 @@
+{
+  "name": "Gestion LocuLara Soluciones",
+  "short_name": "LocuLara",
+  "description": "Sistema de gestion para LocuLara Soluciones",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#6F121B",
+  "theme_color": "#2C1A0E",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "splash.png",
+      "sizes": "2048x2048",
+      "type": "image/png"
+    }
+  ]
+}
