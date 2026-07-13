@@ -1389,10 +1389,20 @@ function abrirModalPago(){
   document.getElementById('cobro-efectivo').value = '';
   document.getElementById('cobro-digital').value = '';
   document.getElementById('cobro-recibido').value = '';
-  document.getElementById('cobro-recibido-row').style.display = 'none';
+  document.getElementById('cobro-vuelto-inner').style.display = 'none';
   document.getElementById('cobro-vuelto-display').style.display = 'none';
+  document.getElementById('cobro-mixto-section').style.display = 'none';
+  document.getElementById('cobro-vuelto-section').style.display = 'none';
   document.getElementById('cobro-alerta').style.display = 'none';
   document.getElementById('btn-confirmar-cobro').disabled = true;
+  // Resetear checkboxes
+  document.getElementById('chk-todo-efectivo').checked = false;
+  document.getElementById('chk-todo-digital').checked = false;
+  document.getElementById('chk-ef-box').style.borderColor = 'var(--border)';
+  document.getElementById('chk-ef-box').style.background = '';
+  document.getElementById('chk-dig-box').style.borderColor = 'var(--border)';
+  document.getElementById('chk-dig-box').style.background = '';
+  _cobroCtx.efectivo = 0; _cobroCtx.digital = 0; _cobroCtx.vuelto = 0;
 
   // Si pendiente es 0 (todo ya definido), habilitar directamente
   if(pendiente <= 0){
