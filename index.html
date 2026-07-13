@@ -642,56 +642,78 @@ tr:hover td{background:#fafaf8}
 <!-- MODAL SELECCION PAGO -->
 <div id="modal-pago" class="modal-overlay">
   <div class="modal-box" style="max-width:420px;margin:5vh auto 0">
-    <div class="row-between" style="margin-bottom:16px">
+    <div class="row-between" style="margin-bottom:14px">
       <span style="font-weight:700;font-size:18px">💳 Cobro</span>
       <button class="btn btn-sm" onclick="cerrarModalPago()">✕ Volver</button>
     </div>
 
-    <!-- Resumen del ticket -->
+    <!-- Resumen -->
     <div style="background:var(--bg);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px">
       <div id="cobro-items-resumen" style="font-size:13px;margin-bottom:8px"></div>
-      <div class="row-between" style="font-size:20px;font-weight:700;padding-top:8px;border-top:1px solid var(--border)">
-        <span>Total</span>
-        <span id="cobro-total" style="color:var(--success)">$0,00</span>
+      <div class="row-between" style="font-size:22px;font-weight:700;padding-top:8px;border-top:1px solid var(--border)">
+        <span>Total</span><span id="cobro-total" style="color:var(--success)">$0,00</span>
       </div>
     </div>
 
-    <!-- Items con pago ya definido (tramites) -->
+    <!-- Items predefinidos -->
     <div id="cobro-predefinidos" style="display:none;margin-bottom:12px">
-      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase">Método ya definido</div>
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;text-transform:uppercase">Metodo ya definido</div>
       <div id="cobro-predefinidos-lista"></div>
     </div>
 
-    <!-- Pendiente a cobrar -->
-    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase">Pendiente a cobrar</div>
-    <div id="cobro-pendiente-display" style="font-size:22px;font-weight:700;color:var(--primary);text-align:center;padding:10px;background:var(--primary-bg);border-radius:var(--radius-sm);margin-bottom:14px">$0,00</div>
+    <!-- Pendiente -->
+    <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase">Pendiente a cobrar</div>
+    <div id="cobro-pendiente-display" style="font-size:24px;font-weight:700;color:var(--primary);text-align:center;padding:10px;background:var(--primary-bg);border-radius:var(--radius-sm);margin-bottom:14px">$0,00</div>
 
-    <!-- Campos de pago -->
-    <div class="row" style="gap:10px;margin-bottom:12px">
-      <div style="flex:1">
-        <label class="label" style="font-size:13px">💵 Efectivo</label>
-        <input type="number" id="cobro-efectivo" min="0" step="0.01" placeholder="0,00"
-          style="font-size:18px;text-align:right;border-color:var(--success)"
-          oninput="calcCobroMixto()">
+    <!-- Checkboxes pago total -->
+    <div class="row" style="gap:10px;margin-bottom:14px">
+      <div onclick="selModoPago('efectivo')" id="chk-ef-box"
+        style="flex:1;display:flex;align-items:center;gap:8px;padding:12px;border:2px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .15s">
+        <input type="checkbox" id="chk-todo-efectivo" style="width:auto;cursor:pointer;transform:scale(1.3)" onclick="event.stopPropagation();selModoPago('efectivo')">
+        <span style="font-size:15px;font-weight:600">💵 Todo efectivo</span>
       </div>
-      <div style="flex:1">
-        <label class="label" style="font-size:13px">📱 Digital</label>
-        <input type="number" id="cobro-digital" min="0" step="0.01" placeholder="0,00"
-          style="font-size:18px;text-align:right;border-color:var(--primary)"
-          oninput="calcCobroMixto()">
+      <div onclick="selModoPago('digital')" id="chk-dig-box"
+        style="flex:1;display:flex;align-items:center;gap:8px;padding:12px;border:2px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .15s">
+        <input type="checkbox" id="chk-todo-digital" style="width:auto;cursor:pointer;transform:scale(1.3)" onclick="event.stopPropagation();selModoPago('digital')">
+        <span style="font-size:15px;font-weight:600">📱 Todo digital</span>
       </div>
     </div>
 
-    <!-- Recibido y vuelto -->
-    <div id="cobro-recibido-row" style="display:none;margin-bottom:10px">
-      <label class="label" style="font-size:13px">💵 Recibido en efectivo (para calcular vuelto)</label>
-      <input type="number" id="cobro-recibido" min="0" step="0.01" placeholder="0,00"
-        style="font-size:16px;text-align:right" oninput="calcVuelto()">
+    <div style="text-align:center;margin:-8px 0 10px">
+      <button class="btn btn-sm" style="border-style:dashed;font-size:12px" onclick="selModoPago('mixto')">↔️ Pago mixto (efectivo + digital)</button>
     </div>
-    <div id="cobro-vuelto-display" style="display:none;font-size:18px;font-weight:700;text-align:center;padding:10px;border-radius:var(--radius-sm);margin-bottom:12px"></div>
+    <!-- Campos mixto -->
+    <div id="cobro-mixto-section" style="display:none">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase">Pago mixto</div>
+      <div class="row" style="gap:10px;margin-bottom:10px">
+        <div style="flex:1">
+          <label class="label" style="font-size:13px">💵 Efectivo</label>
+          <input type="number" id="cobro-efectivo" min="0" step="1" placeholder="0"
+            style="font-size:18px;text-align:right;border-color:var(--success)"
+            oninput="autoBalancear('efectivo')">
+        </div>
+        <div style="flex:1">
+          <label class="label" style="font-size:13px">📱 Digital</label>
+          <input type="number" id="cobro-digital" min="0" step="1" placeholder="0"
+            style="font-size:18px;text-align:right;border-color:var(--primary)"
+            oninput="autoBalancear('digital')">
+        </div>
+      </div>
+    </div>
 
-    <!-- Alerta suma -->
-    <div id="cobro-alerta" style="display:none;font-size:13px;text-align:center;padding:8px;border-radius:var(--radius-sm);margin-bottom:10px;background:var(--warning-bg);color:var(--warning)"></div>
+    <!-- Botón vuelto (solo efectivo) -->
+    <div id="cobro-vuelto-section" style="display:none;margin-bottom:12px">
+      <button class="btn btn-sm btn-full" style="border-style:dashed;margin-bottom:8px" onclick="toggleVuelto()">🔢 Calcular vuelto</button>
+      <div id="cobro-vuelto-inner" style="display:none">
+        <label class="label" style="font-size:13px">Recibido en efectivo</label>
+        <input type="number" id="cobro-recibido" min="0" step="1" placeholder="0"
+          style="font-size:16px;text-align:right;margin-bottom:8px" oninput="calcVuelto()">
+        <div id="cobro-vuelto-display" style="display:none;font-size:20px;font-weight:700;text-align:center;padding:10px;border-radius:var(--radius-sm)"></div>
+      </div>
+    </div>
+
+    <!-- Estado -->
+    <div id="cobro-alerta" style="display:none;font-size:13px;text-align:center;padding:8px;border-radius:var(--radius-sm);margin-bottom:10px"></div>
 
     <button class="btn btn-success btn-full" id="btn-confirmar-cobro" onclick="confirmarCobro()"
       style="font-size:17px;padding:16px;font-weight:700" disabled>
@@ -1385,68 +1407,113 @@ function abrirModalPago(){
   setTimeout(function(){ document.getElementById('cobro-efectivo').focus(); }, 100);
 }
 
-function calcCobroMixto(){
-  var ef = parseFloat(document.getElementById('cobro-efectivo').value)||0;
-  var dig = parseFloat(document.getElementById('cobro-digital').value)||0;
-  var suma = Math.round((ef+dig)*100)/100;
-  var pendiente = _cobroCtx.pendiente;
+function selModoPago(modo){
+  var chkEf  = document.getElementById('chk-todo-efectivo');
+  var chkDig = document.getElementById('chk-todo-digital');
+  var boxEf  = document.getElementById('chk-ef-box');
+  var boxDig = document.getElementById('chk-dig-box');
+  var mixto  = document.getElementById('cobro-mixto-section');
+  var vueltoSec = document.getElementById('cobro-vuelto-section');
   var alerta = document.getElementById('cobro-alerta');
   var btnConf = document.getElementById('btn-confirmar-cobro');
-  var recibidoRow = document.getElementById('cobro-recibido-row');
 
-  // Autocompletar el otro campo si solo uno tiene valor
-  // (no autocompletar para no interferir mientras tipea)
-
-  var diff = Math.round((suma - pendiente)*100)/100;
-
-  if(Math.abs(diff) < 0.01){
-    // Suma exacta
-    alerta.style.display = 'block';
-    alerta.textContent = '✅ Suma correcta';
-    alerta.style.background = 'var(--success-bg)'; alerta.style.color = 'var(--success)';
-    btnConf.disabled = false;
-    recibidoRow.style.display = ef>0 ? 'block' : 'none';
-  } else if(suma > pendiente){
-    alerta.style.display = 'block';
-    alerta.textContent = 'Excede el total en '+fmt(diff);
-    alerta.style.background = 'var(--warning-bg)'; alerta.style.color = 'var(--warning)';
-    btnConf.disabled = true;
-    recibidoRow.style.display = 'none';
-  } else if(suma > 0){
-    var falta = Math.round((pendiente-suma)*100)/100;
-    alerta.style.display = 'block';
-    alerta.textContent = 'Falta '+fmt(falta)+' para completar el total';
-    alerta.style.background = 'var(--warning-bg)'; alerta.style.color = 'var(--warning)';
-    btnConf.disabled = true;
-    recibidoRow.style.display = 'none';
+  if(modo === 'efectivo'){
+    var era = chkEf.checked;
+    chkEf.checked = !era; chkDig.checked = false;
+    boxEf.style.borderColor  = chkEf.checked  ? 'var(--success)' : 'var(--border)';
+    boxEf.style.background   = chkEf.checked  ? 'var(--success-bg)' : '';
+    boxDig.style.borderColor = 'var(--border)'; boxDig.style.background = '';
+    mixto.style.display = 'none';
+    vueltoSec.style.display = chkEf.checked ? 'block' : 'none';
+    _cobroCtx.efectivo = chkEf.checked ? _cobroCtx.pendiente : 0;
+    _cobroCtx.digital  = 0;
+    btnConf.disabled = !chkEf.checked;
+    alerta.style.display = chkEf.checked ? 'block' : 'none';
+    if(chkEf.checked){ alerta.textContent='✅ Todo en efectivo'; alerta.style.background='var(--success-bg)'; alerta.style.color='var(--success)'; }
+  } else if(modo === 'digital'){
+    var era2 = chkDig.checked;
+    chkDig.checked = !era2; chkEf.checked = false;
+    boxDig.style.borderColor = chkDig.checked ? 'var(--primary)' : 'var(--border)';
+    boxDig.style.background  = chkDig.checked ? 'var(--primary-bg)' : '';
+    boxEf.style.borderColor  = 'var(--border)'; boxEf.style.background = '';
+    mixto.style.display = 'none';
+    vueltoSec.style.display = 'none';
+    _cobroCtx.digital  = chkDig.checked ? _cobroCtx.pendiente : 0;
+    _cobroCtx.efectivo = 0;
+    btnConf.disabled = !chkDig.checked;
+    alerta.style.display = chkDig.checked ? 'block' : 'none';
+    if(chkDig.checked){ alerta.textContent='✅ Todo digital'; alerta.style.background='var(--primary-bg)'; alerta.style.color='var(--primary-dark)'; }
   } else {
-    alerta.style.display = 'none';
+    // mixto
+    chkEf.checked = false; chkDig.checked = false;
+    boxEf.style.borderColor='var(--border)'; boxEf.style.background='';
+    boxDig.style.borderColor='var(--border)'; boxDig.style.background='';
+    mixto.style.display = 'block';
+    vueltoSec.style.display = 'none';
     btnConf.disabled = true;
-    recibidoRow.style.display = 'none';
+    alerta.style.display = 'none';
+    document.getElementById('cobro-efectivo').value = '';
+    document.getElementById('cobro-digital').value = '';
+    document.getElementById('cobro-efectivo').focus();
   }
-  _cobroCtx.efectivo = ef;
-  _cobroCtx.digital = dig;
-  calcVuelto();
+}
+
+function autoBalancear(campo){
+  var pendiente = _cobroCtx.pendiente;
+  var inputEf  = document.getElementById('cobro-efectivo');
+  var inputDig = document.getElementById('cobro-digital');
+  var alerta   = document.getElementById('cobro-alerta');
+  var btnConf  = document.getElementById('btn-confirmar-cobro');
+  var vueltoSec = document.getElementById('cobro-vuelto-section');
+
+  if(campo === 'efectivo'){
+    var ef = parseFloat(inputEf.value)||0;
+    // Autolimitar al total
+    if(ef > pendiente){ ef = pendiente; inputEf.value = ef; }
+    var dig = Math.round((pendiente - ef)*100)/100;
+    inputDig.value = dig > 0 ? dig : 0;
+    _cobroCtx.efectivo = ef;
+    _cobroCtx.digital  = dig;
+  } else {
+    var dig2 = parseFloat(inputDig.value)||0;
+    if(dig2 > pendiente){ dig2 = pendiente; inputDig.value = dig2; }
+    var ef2 = Math.round((pendiente - dig2)*100)/100;
+    inputEf.value = ef2 > 0 ? ef2 : 0;
+    _cobroCtx.efectivo = ef2;
+    _cobroCtx.digital  = dig2;
+  }
+
+  var suma = _cobroCtx.efectivo + _cobroCtx.digital;
+  var ok = Math.abs(suma - pendiente) < 0.01;
+  btnConf.disabled = !ok;
+  alerta.style.display = ok ? 'block' : 'none';
+  if(ok){ alerta.textContent='✅ Suma correcta'; alerta.style.background='var(--success-bg)'; alerta.style.color='var(--success)'; }
+  vueltoSec.style.display = (_cobroCtx.efectivo > 0 && ok) ? 'block' : 'none';
+}
+
+function toggleVuelto(){
+  var inner = document.getElementById('cobro-vuelto-inner');
+  inner.style.display = inner.style.display === 'none' ? 'block' : 'none';
+  if(inner.style.display === 'block') document.getElementById('cobro-recibido').focus();
 }
 
 function calcVuelto(){
   var recibido = parseFloat(document.getElementById('cobro-recibido').value)||0;
   var ef = _cobroCtx.efectivo;
-  var vueltoDiv = document.getElementById('cobro-vuelto-display');
-  if(recibido > 0 && ef > 0){
+  var div = document.getElementById('cobro-vuelto-display');
+  if(recibido > 0){
     var vuelto = Math.round((recibido - ef)*100)/100;
-    vueltoDiv.style.display = 'block';
+    div.style.display = 'block';
     if(vuelto >= 0){
-      vueltoDiv.style.background = 'var(--success-bg)'; vueltoDiv.style.color = 'var(--success)';
-      vueltoDiv.textContent = 'Vuelto: '+fmt(vuelto);
+      div.style.background='var(--success-bg)'; div.style.color='var(--success)';
+      div.textContent = 'Vuelto: '+fmt(vuelto);
     } else {
-      vueltoDiv.style.background = 'var(--danger-bg)'; vueltoDiv.style.color = 'var(--danger)';
-      vueltoDiv.textContent = 'Falta efectivo: '+fmt(Math.abs(vuelto));
+      div.style.background='var(--danger-bg)'; div.style.color='var(--danger)';
+      div.textContent = 'Falta: '+fmt(Math.abs(vuelto));
     }
     _cobroCtx.vuelto = Math.max(0, vuelto);
   } else {
-    vueltoDiv.style.display = 'none';
-    _cobroCtx.vuelto = 0;
+    div.style.display = 'none'; _cobroCtx.vuelto = 0;
   }
 }
 
