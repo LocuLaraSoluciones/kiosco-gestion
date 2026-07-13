@@ -1,6 +1,8 @@
 {
-  "version": 2,
-  "routes": [
-    { "src": "/(.*)", "dest": "/index.html" }
+  "rewrites": [
+    {
+      "source": "/((?!manifest.json|sw.js|icon-192.png|icon-512.png|splash.png).*)",
+      "destination": "/index.html"
+    }
   ]
 }
