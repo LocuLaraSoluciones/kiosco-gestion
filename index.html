@@ -2189,7 +2189,7 @@ function validarArticuloExistente(){
 
   if(encontrado){
     var p = encontrado;
-    if(document.getElementById('np-nombre').value.trim()) document.getElementById('np-nombre').value = p.nombre;
+    document.getElementById('np-nombre').value = p.nombre || '';
     document.getElementById('np-barcode').value = p.codigo_barras || '';
     // Mostrar universo si tiene valor
     if(p.notas){
