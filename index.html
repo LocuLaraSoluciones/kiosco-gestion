@@ -388,14 +388,22 @@ tr:hover td{background:#fafaf8}
           <div class="form-group">
             <label class="label">Codigo de barras</label>
             <div class="row" style="gap:6px">
-              <input type="text" id="np-barcode" placeholder="Escanear o escribir..." style="font-family:monospace;flex:1" oninput="validarArticuloExistente()">
+              <input type="text" id="np-barcode" placeholder="Escanear o escribir..." style="font-family:monospace;flex:1" oninput="validarArticuloExistente()" onkeydown="if(event.key==='Enter'){event.preventDefault();validarArticuloExistente();}">
               <button type="button" class="btn btn-sm" onclick="escanearCamaraProd()" title="Escanear con camara" style="padding:8px 12px;font-size:18px;flex-shrink:0">📷</button>
             </div>
             <div id="np-barcode-warn" style="display:none;color:var(--danger);font-size:11px;font-weight:600;margin-top:3px">ARTICULO EXISTENTE</div>
           </div>
-          <div class="form-group"><label class="label">Codigo Universo (controles, opcional)</label><input type="text" id="np-universo" placeholder="Ej: U-S001" style="font-family:monospace"></div>
+          <div class="form-group">
+            <button type="button" class="btn btn-sm" style="border-style:dashed;width:100%;color:var(--text2);font-size:12px" onclick="toggleUniversoField()">+ Codigo Universo (solo controles remotos)</button>
+            <div id="np-universo-row" style="display:none;margin-top:6px">
+              <input type="text" id="np-universo" placeholder="Ej: U-S001" style="font-family:monospace">
+            </div>
+          </div>
           <div class="form-group"><label class="label">Categoria</label><select id="np-cat"></select></div>
-          <div class="form-group"><label class="label">Precio de venta ($)</label><input type="number" id="np-precio" placeholder="0,00" min="0" step="0.01"></div>
+          <div class="row" style="gap:8px;margin-bottom:12px">
+            <div style="flex:1"><label class="label">Precio de venta ($)</label><input type="number" id="np-precio" placeholder="0,00" min="0" step="0.01" style="text-align:right"></div>
+            <div style="flex:1"><label class="label">Precio de costo ($)</label><input type="number" id="np-costo" placeholder="0,00" min="0" step="0.01" style="text-align:right"></div>
+          </div>
           <div class="form-group"><label class="label">Stock inicial</label><input type="number" id="np-stock" placeholder="0" min="0"></div>
           <div class="form-group"><label class="label">Stock minimo (0 = sin control)</label><input type="number" id="np-min" placeholder="0" min="0"></div>
           <div class="form-group"><label class="label">Proveedor</label><select id="np-prov"></select></div>
@@ -2088,6 +2096,15 @@ async function guardarStockSilencioso(prodId, valor, callback){
   }
   if(callback) callback();
 }
+function toggleUniversoField(){
+  var row = document.getElementById('np-universo-row');
+  var btn = row.previousElementSibling;
+  var visible = row.style.display !== 'none';
+  row.style.display = visible ? 'none' : 'block';
+  btn.textContent = visible ? '+ Codigo Universo (solo controles remotos)' : '− Codigo Universo (solo controles remotos)';
+  if(!visible) document.getElementById('np-universo').focus();
+}
+
 function escanearCamaraProd(){
   if(!('BarcodeDetector' in window)){
     toast('Tu navegador no soporta escaneo por camara. Usa el lector fisico.',false);
@@ -2171,22 +2188,30 @@ function validarArticuloExistente(){
   if(wbarcode) wbarcode.style.display = matchBarcode ? 'block' : 'none';
 
   if(encontrado){
-    // Rellenar formulario con datos del existente
     var p = encontrado;
     if(document.getElementById('np-nombre').value.trim()) document.getElementById('np-nombre').value = p.nombre;
     document.getElementById('np-barcode').value = p.codigo_barras || '';
-    document.getElementById('np-universo').value = p.notas || '';
+    // Mostrar universo si tiene valor
+    if(p.notas){
+      document.getElementById('np-universo-row').style.display = 'block';
+      document.getElementById('np-universo').value = p.notas;
+    }
     document.getElementById('np-cat').value = p.categoria_id || '';
     document.getElementById('np-precio').value = p.precio || '';
+    document.getElementById('np-costo').value = p.costo_unitario || '';
     document.getElementById('np-stock').value = p.stock || '';
     document.getElementById('np-min').value = p.stock_minimo || '';
     document.getElementById('np-prov').value = p.proveedor_id || '';
     document.getElementById('np-peso').checked = p.por_peso || false;
-    // Deshabilitar boton agregar
+    // Cambiar botón a "Editar" en lugar de deshabilitar
     if(btnSave && !state.editingProdId){
-      btnSave.disabled = true;
-      btnSave.style.opacity = '0.5';
-      btnSave.title = 'Este articulo ya existe en el sistema';
+      btnSave.disabled = false;
+      btnSave.style.opacity = '';
+      btnSave.textContent = '✏️ Guardar cambios';
+      btnSave.title = '';
+      state.editingProdId = p.id;
+      document.getElementById('btn-cancel-prod').style.display = '';
+      document.getElementById('prod-form-title').textContent = 'Editar: ' + p.nombre;
     }
   } else {
     if(btnSave){
@@ -2208,7 +2233,8 @@ async function saveProduct(){
   var barcode=document.getElementById('np-barcode').value.trim()||null;
   var universo=document.getElementById('np-universo').value.trim()||null;
   if(!nombre||!precio){ toast('Completa nombre y precio',false); return; }
-  var data={nombre:nombre,categoria_id:catId,proveedor_id:provId,precio:precio,stock_minimo:min,por_peso:peso,codigo_barras:barcode,notas:universo};
+  var costo=parseFloat(document.getElementById('np-costo').value)||0;
+  var data={nombre:nombre,categoria_id:catId,proveedor_id:provId,precio:precio,costo_unitario:costo,stock_minimo:min,por_peso:peso,codigo_barras:barcode,notas:universo};
   if(state.editingProdId){
     await sb.from('productos').update(data).eq('id',state.editingProdId);
     toast('Producto actualizado'); cancelEditProd();
@@ -2216,7 +2242,8 @@ async function saveProduct(){
     data.stock=stock;
     await sb.from('productos').insert(data);
     toast('Producto agregado');
-    ['np-nombre','np-precio','np-stock','np-min','np-barcode','np-universo'].forEach(function(id){ document.getElementById(id).value=''; });
+    ['np-nombre','np-precio','np-costo','np-stock','np-min','np-barcode','np-universo'].forEach(function(id){ document.getElementById(id).value=''; });
+    document.getElementById('np-universo-row').style.display='none';
     document.getElementById('np-peso').checked=false;
   }
   await loadProductos(); renderProdTable(); renderProdGrid();
@@ -2230,6 +2257,7 @@ function editProduct(id){
   document.getElementById('np-cat').value=p.categoria_id;
   document.getElementById('np-prov').value=p.proveedor_id;
   document.getElementById('np-precio').value=p.precio;
+  document.getElementById('np-costo').value=p.costo_unitario||'';
   document.getElementById('np-stock').value=p.stock;
   document.getElementById('np-min').value=p.stock_minimo;
   document.getElementById('np-peso').checked=p.por_peso;
